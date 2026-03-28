@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inbound Shift Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#0d1b2a;--navy2:#152236;--navy3:#1e2d4f;--teal:#0fb8c0;--teal-d:#0891b2;--teal-l:#ecfeff;--amber:#f59e0b;--red:#ef4444;--red-l:#fff1f2;--green:#10b981;--green-l:#ecfdf5;--blue:#3b82f6;--blue-l:#eff6ff;--purple:#8b5cf6;--purple-l:#f5f3ff;--bg:#f0f4f8;--card:#fff;--border:#dde3ec;--text:#0f172a;--text2:#4b5669;--text3:#94a3b8;--shadow:0 2px 12px rgba(13,27,42,.10);--shadow-lg:0 8px 32px rgba(13,27,42,.18);--r:10px;--sw:240px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Outfit',sans-serif;font-size:14px;color:var(--text);background:var(--bg);overflow:hidden}
+button{cursor:pointer;font-family:'Outfit',sans-serif}input,select,textarea{font-family:'Outfit',sans-serif}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#c0cad8;border-radius:4px}
+[data-tip]{position:relative}[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100%+6px);left:50%;transform:translateX(-50%);background:#0d1b2a;color:#fff;font-size:11px;padding:5px 9px;border-radius:6px;z-index:9999;pointer-events:none;white-space:nowrap;max-width:240px;white-space:normal;text-align:center;line-height:1.4}[data-tip]:hover::before{content:'';position:absolute;bottom:calc(100%+1px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#0d1b2a;z-index:9999}
+/* LOGIN */
+#loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#0a1628 0%,#0d1b2a 40%,#0f2744 100%);display:flex;align-items:center;justify-content:center;z-index:1500}
+#loginScreen.hidden{display:none}
+.login-wrap{display:flex;background:#fff;border-radius:20px;overflow:hidden;width:780px;max-width:95vw;box-shadow:0 30px 80px rgba(0,0,0,.5);max-height:90vh}
+.login-left{width:280px;background:var(--navy);padding:36px 28px;display:flex;flex-direction:column;flex-shrink:0}
+.ll-icon{width:48px;height:48px;background:rgba(15,184,192,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.ll-icon svg{width:26px;height:26px;fill:var(--teal)}
+.login-left h2{font-size:18px;font-weight:800;color:#fff;margin-bottom:8px;line-height:1.3}
+.login-left p{font-size:12px;color:#7fa3c0;line-height:1.6;margin-bottom:auto}
+.ll-creds{margin-top:24px;background:rgba(15,184,192,.1);border:1px solid rgba(15,184,192,.25);border-radius:8px;padding:12px}
+.ll-creds .lc-title{font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.ll-creds .lc-row{font-size:11px;color:#c8d8e8;margin-bottom:4px;font-family:'DM Mono',monospace}
+.ll-creds .lc-row span{color:#7fa3c0}
+.login-left .ll-footer{font-size:10px;color:#3a5270;margin-top:16px}
+.login-right{flex:1;padding:36px;overflow-y:auto}
+.login-right h3{font-size:17px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.lr-sub{font-size:12px;color:var(--text2);margin-bottom:24px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+.fi{width:100%;padding:10px 13px;border:2px solid var(--border);border-radius:8px;font-size:14px;outline:none;transition:.2s;color:var(--text)}
+.fi:focus{border-color:var(--teal)}
+.fi.err{border-color:var(--red)}
+.ferr{font-size:11px;color:var(--red);margin-top:4px;display:none}
+.ferr.show{display:block}
+.shift-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.shift-btn{padding:10px;border:2px solid var(--border);border-radius:8px;background:#fff;font-size:13px;font-weight:600;color:var(--text2);transition:.2s;text-align:center}
+.shift-btn:hover{border-color:var(--teal-d)}
+.shift-btn.active{border-color:var(--teal);background:var(--teal-l);color:var(--teal-d)}
+.login-btn{width:100%;padding:12px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;margin-top:6px;transition:.2s}
+.login-btn:hover{background:var(--navy3)}
+.admin-link{margin-top:14px;text-align:center;font-size:12px;color:var(--text2)}
+.admin-link a{color:var(--teal-d);font-weight:600;cursor:pointer}
+/* APP */
+#app{display:none;height:100vh;flex-direction:column}
+#app.visible{display:flex}
+.topbar{height:54px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;z-index:200}
+.tb-logo{display:flex;align-items:center;gap:9px}
+.tb-logo .tl-icon{width:30px;height:30px;background:var(--navy);border-radius:7px;display:flex;align-items:center;justify-content:center}
+.tb-logo .tl-icon svg{width:16px;height:16px;fill:var(--teal)}
+.tb-logo span{font-size:13px;font-weight:700;color:var(--navy)}
+.tb-sep{width:1px;height:22px;background:var(--border)}
+.shift-pills{display:flex;background:var(--bg);border-radius:6px;padding:2px}
+.shift-pills button{padding:4px 14px;border:none;background:transparent;font-size:11px;font-weight:700;color:var(--text2);border-radius:4px;transition:.15s}
+.shift-pills button.active{background:#fff;color:var(--navy);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.user-pill{display:flex;align-items:center;gap:7px;padding:4px 11px 4px 5px;background:var(--bg);border-radius:20px;border:1px solid var(--border)}
+.user-av{width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.ui-name{font-size:12px;font-weight:600;color:var(--text);line-height:1.1}
+.ui-role{font-size:10px;color:var(--text3)}
+.tb-btn{display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:7px;border:none;font-size:12px;font-weight:600;transition:.15s}
+.tb-btn svg{width:13px;height:13px;flex-shrink:0}
+.tb-btn.save{background:var(--green);color:#fff}.tb-btn.save:hover{background:#059669}
+.tb-btn.report{background:var(--navy);color:#fff}.tb-btn.report:hover{background:var(--navy3)}
+.tb-btn.outline{background:#fff;color:var(--text2);border:1.5px solid var(--border)}.tb-btn.outline:hover{background:var(--bg)}
+.tb-btn.admin-tb{background:var(--purple-l);color:var(--purple);border:1.5px solid #ddd6fe}.tb-btn.admin-tb:hover{background:#ede9fe}
+.tb-btn.logout{background:var(--red-l);color:var(--red);border:1.5px solid #fecaca}.tb-btn.logout:hover{background:#fee2e2}
+/* BODY */
+.app-body{display:flex;flex:1;overflow:hidden}
+.sidebar{width:var(--sw);background:var(--navy);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.sb-section{padding:14px 10px 6px}
+.sb-label{font-size:10px;font-weight:700;color:#3a5270;text-transform:uppercase;letter-spacing:1.2px;padding:0 8px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;transition:.15s;color:#7a97b5;font-size:12px;font-weight:500;border:none;background:transparent;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#c0d4e8}
+.nav-item.active{background:rgba(15,184,192,.14);color:var(--teal)}
+.nav-item .ni{width:15px;height:15px;flex-shrink:0;stroke:currentColor}
+.nb{margin-left:auto;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;font-family:'DM Mono',monospace}
+.nb-blue{background:rgba(59,130,246,.2);color:#93c5fd}.nb-red{background:rgba(239,68,68,.2);color:#f87171}
+.sb-div{height:1px;background:rgba(255,255,255,.05);margin:6px 10px}
+.sb-user{margin:10px;border-radius:8px;background:rgba(255,255,255,.05);padding:10px 12px}
+.su-name{font-size:12px;font-weight:600;color:#c8d8e8;margin-bottom:2px}
+.su-email{font-size:10px;color:#4a6a8a;font-family:'DM Mono',monospace;word-break:break-all}
+.su-role{display:inline-block;margin-top:4px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px}
+.sr-super{background:rgba(139,92,246,.2);color:#c4b5fd}
+.sr-admin{background:rgba(245,158,11,.2);color:#fcd34d}
+.sr-user{background:rgba(15,184,192,.2);color:var(--teal)}
+/* MAIN */
+.main{flex:1;overflow-y:auto;padding:20px}
+.page{display:none}.page.active{display:block}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:12px}
+.ph-left h2{font-size:17px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px}
+.ph-left .ph-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.ph-actions{display:flex;gap:8px;flex-shrink:0}
+.card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:18px;box-shadow:var(--shadow);margin-bottom:14px}
+.card-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.info-tile{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px}
+.it-label{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.it-val{font-size:15px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace}
+.it-val.teal{color:var(--teal-d)}
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)}
+table.tbl{width:100%;border-collapse:collapse;background:#fff;font-size:12px}
+table.tbl thead tr{background:var(--navy)}
+table.tbl thead th{padding:9px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#8da8c0;text-align:left;white-space:nowrap}
+table.tbl thead th:first-child{border-radius:var(--r) 0 0 0}table.tbl thead th:last-child{border-radius:0 var(--r) 0 0}
+table.tbl tbody tr{border-bottom:1px solid var(--border);transition:.12s}
+table.tbl tbody tr:hover{background:#f8fafc}
+table.tbl tbody tr:last-child{border:none}
+table.tbl td{padding:9px 10px;vertical-align:middle}
+.td-mono{font-family:'DM Mono',monospace;font-size:11px}
+.td-pri td{color:#dc2626}.td-pri .td-appt{font-weight:700}
+/* BADGES */
+.badge{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;font-size:10px;font-weight:700;padding:2px 8px;white-space:nowrap}
+.b-y{background:#d1fae5;color:#065f46}.b-n{background:#fee2e2;color:#991b1b}
+.b-na{background:#f1f5f9;color:#94a3b8;border-radius:4px;font-size:9px;padding:2px 5px}
+.b-appt{background:#dbeafe;color:#1d4ed8}.b-perf{background:#fce7f3;color:#9d174d}
+.b-dublin{background:#dcfce7;color:#166534}.b-birm{background:#fff7ed;color:#92400e}
+.b-other{background:#f1f5f9;color:#475569}
+.b-super{background:var(--purple-l);color:var(--purple);border:1px solid #ddd6fe}
+.b-admin{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+.b-user{background:var(--teal-l);color:var(--teal-d);border:1px solid #a5f3fc}
+.b-active{background:var(--green-l);color:#065f46}.b-inactive{background:#f1f5f9;color:#64748b}
+.b-am{background:#dbeafe;color:#1e40af}.b-pm{background:#f3e8ff;color:#7c3aed}
+/* ACTIONS */
+.acts{display:flex;gap:4px}
+.act{width:26px;height:26px;border-radius:6px;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.act svg{width:12px;height:12px;stroke:currentColor}
+.act-edit{background:var(--blue-l);color:var(--blue)}.act-edit:hover{background:#dbeafe}
+.act-del{background:var(--red-l);color:var(--red)}.act-del:hover{background:#fee2e2}
+.act-tog{background:#fffbeb;color:#b45309}.act-tog:hover{background:#fde68a}
+/* BUTTONS */
+.btn{padding:7px 14px;border-radius:7px;border:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:.15s;cursor:pointer}
+.btn svg{width:13px;height:13px;stroke:currentColor}
+.btn-navy{background:var(--navy);color:#fff}.btn-navy:hover{background:var(--navy3)}
+.btn-teal{background:var(--teal);color:#fff}.btn-teal:hover{background:var(--teal-d)}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#dc2626}
+.btn-outline{background:#fff;color:var(--text2);border:1.5px solid var(--border)}.btn-outline:hover{background:var(--bg)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.add-row-btn{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg);border:1.5px dashed var(--border);border-radius:0 0 var(--r) var(--r);width:100%;color:var(--text2);font-size:12px;font-weight:500;transition:.15s;cursor:pointer}
+.add-row-btn:hover{background:var(--border)}
+/* FORM */
+.appt-form{background:#fff;border-radius:var(--r);border:2px solid var(--teal);padding:16px;margin-bottom:14px;display:none}
+.appt-form.open{display:block}
+.appt-form.red-b{border-color:var(--red)}
+.af-title{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.af-dot{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+.fr{display:grid;gap:10px;margin-bottom:10px}
+.fr2{grid-template-columns:1fr 1fr}.fr3{grid-template-columns:repeat(3,1fr)}.fr4{grid-template-columns:repeat(4,1fr)}
+.ff{display:flex;flex-direction:column;gap:4px}
+.ff label{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.ff label .req{color:var(--red)}
+.ff input,.ff select,.ff textarea{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;color:var(--text);background:#fff;width:100%}
+.ff input:focus,.ff select:focus,.ff textarea:focus{border-color:var(--teal)}
+.ff-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;text-align:center}
+.kc-l{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.kc-v{font-size:26px;font-weight:800;font-family:'DM Mono',monospace;color:var(--navy)}
+.kc-s{font-size:10px;color:var(--text3);margin-top:2px}
+.kpi-card.hl{background:var(--navy);border-color:var(--navy)}.kpi-card.hl .kc-l{color:#5a7a9a}.kpi-card.hl .kc-v{color:#fff}.kpi-card.hl .kc-s{color:#5a7a9a}
+.kpi-bar{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:8px}
+.kpi-fill{height:100%;border-radius:3px;transition:width .5s}
+.kpi-inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ki-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px}
+.ki-label{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.ki-input{width:100%;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:16px;font-weight:700;font-family:'DM Mono',monospace;text-align:center;outline:none;color:var(--navy)}
+.ki-input:focus{border-color:var(--teal)}
+/* WIP CARDS */
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.wip-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:13px}
+.wip-card.p-card{border-color:#fca5a5;background:#fff8f8}
+.wc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px}
+.wc-appt{font-size:15px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace}
+.wip-card.p-card .wc-appt{color:#dc2626}
+.wc-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.wf-l{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase}
+.wf-v{font-size:12px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace}
+.wc-foot{margin-top:9px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.wc-meta{font-size:10px;color:var(--text3)}
+/* EMAIL */
+.email-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ei-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:18px;text-align:center}
+.ei-label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.ei-input{width:100%;padding:12px;border:2px solid var(--border);border-radius:8px;font-size:22px;font-weight:700;font-family:'DM Mono',monospace;text-align:center;outline:none;color:var(--navy)}
+.ei-input:focus{border-color:var(--teal)}
+.notes-ta{width:100%;min-height:150px;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;outline:none;line-height:1.6;color:var(--text)}
+.notes-ta:focus{border-color:var(--teal)}
+/* MODALS */
+.overlay{position:fixed;inset:0;background:rgba(13,27,42,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:800}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:14px;box-shadow:var(--shadow-lg);width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column}
+.modal-sm{max-width:420px}.modal-md{max-width:580px}.modal-lg{max-width:860px}.modal-xl{max-width:1060px}
+.mh{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.mh h3{font-size:15px;font-weight:700;color:var(--navy)}
+.mclose{width:28px;height:28px;border-radius:6px;border:none;background:var(--bg);color:var(--text2);font-size:14px;cursor:pointer}
+.mclose:hover{background:var(--border)}
+.mb{padding:20px;overflow-y:auto;flex:1}
+.mf{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+/* CONFIRM */
+.confirm-icon{width:48px;height:48px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center}
+.ci-warn{background:#fff7ed}.ci-danger{background:#fff1f2}
+.confirm-msg{text-align:center;font-size:13px;color:var(--text);line-height:1.6;margin-bottom:4px}
+.confirm-sub{text-align:center;font-size:11px;color:var(--text2)}
+/* ADMIN */
+#adminPanel{position:fixed;inset:0;background:#f0f4f8;z-index:1000;display:none;flex-direction:column;overflow:hidden}
+#adminPanel.open{display:flex}
+.ap-header{height:52px;background:var(--navy);display:flex;align-items:center;padding:0 20px;gap:14px;flex-shrink:0}
+.ap-header .aph-title{font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
+.ap-header .aph-badge{background:rgba(139,92,246,.3);color:#c4b5fd;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px}
+.ap-header .aph-close{margin-left:auto;padding:6px 12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.ap-header .aph-close:hover{background:rgba(255,255,255,.2)}
+.ap-body{display:flex;flex:1;overflow:hidden}
+.ap-tabs{width:190px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px 8px;flex-shrink:0;gap:2px}
+.ap-tab{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:7px;cursor:pointer;transition:.15s;color:var(--text2);font-size:12px;font-weight:500;border:none;background:transparent;width:100%;text-align:left}
+.ap-tab:hover{background:var(--bg);color:var(--text)}.ap-tab.active{background:var(--purple-l);color:var(--purple)}
+.ap-tab svg{width:14px;height:14px;flex-shrink:0;stroke:currentColor}
+.ap-content{flex:1;overflow-y:auto;padding:20px}
+.ap-section{display:none}.ap-section.active{display:block}
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.stat-tile{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px}
+.st-val{font-size:28px;font-weight:800;font-family:'DM Mono',monospace;color:var(--navy)}
+.st-label{font-size:11px;color:var(--text2);margin-top:2px}.st-icon{font-size:20px;margin-bottom:6px}
+/* TOAST */
+.toast-wrap{position:fixed;bottom:18px;right:18px;z-index:3000;display:flex;flex-direction:column;gap:7px}
+.toast{padding:11px 15px;border-radius:8px;font-size:12px;font-weight:500;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px;color:#fff;min-width:200px;animation:tsIn .3s ease}
+.t-success{background:#059669}.t-error{background:#dc2626}.t-info{background:var(--navy)}.t-warn{background:#d97706}
+@keyframes tsIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.empty{text-align:center;padding:36px 20px;color:var(--text2);font-size:13px}
+.section-empty{text-align:center;padding:24px;color:var(--text2);font-size:12px;background:var(--bg);border-radius:8px}
+.mod-tag{font-size:10px;color:var(--text3);margin-top:2px}
+@media print{body>*:not(#printDoc){display:none!important}#printDoc{display:block!important}}
+#printDoc{display:none;font-family:'Outfit',sans-serif;padding:28px;max-width:800px;margin:0 auto;color:#000;line-height:1.5}
+#printDoc .pd-header{text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:14px}
+#printDoc .pd-title{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.8px}
+#printDoc .pd-meta{display:flex;justify-content:space-between;font-size:11px;color:#555;margin-top:4px}
+#printDoc h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;background:#f0f0f0;padding:3px 7px;border-left:3px solid #000}
+#printDoc table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:8px}
+#printDoc table th{background:#1a1a2e;color:#fff;padding:4px 7px;text-align:left;font-size:9px;text-transform:uppercase}
+#printDoc table td{padding:4px 7px;border-bottom:1px solid #e5e5e5}
+#printDoc table tr:nth-child(even){background:#f8f8f8}
+#printDoc .pd-priority td{color:#cc0000;font-weight:700}
+#printDoc .pd-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 10px}
+#printDoc .pd-kpi{border:1px solid #ddd;padding:7px;text-align:center;border-radius:4px}
+#printDoc .pd-kpi .pkv{font-size:18px;font-weight:800}.pd-kpi .pkl{font-size:9px;text-transform:uppercase;color:#666}
+#printDoc .pd-notes{background:#fafafa;border:1px solid #ddd;padding:9px;border-radius:4px;font-size:11px;white-space:pre-wrap}
+#printDoc .pd-footer{margin-top:16px;padding-top:6px;border-top:1px solid #ccc;font-size:9px;color:#888;display:flex;justify-content:space-between}
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="loginScreen">
+  <div class="login-wrap">
+    <div class="login-left">
+      <div class="ll-icon"><svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM2 13h20v2H2z"/></svg></div>
+      <h2>Inbound Shift Report</h2>
+      <p>Daily shift management, appointments, KPIs and handover logging for warehouse inbound operations.</p>
+      <div class="ll-creds">
+        <div class="lc-title">Super Admin Credentials</div>
+        <div class="lc-row"><span>Email: </span>moses@ihsr.com</div>
+        <div class="lc-row"><span>Pass: </span>Admin@123</div>
+      </div>
+      <div class="ll-footer">Inbound Shift Report v2.0</div>
+    </div>
+    <div class="login-right">
+      <h3>Sign In</h3>
+      <div class="lr-sub">Enter your email and password to access your shift.</div>
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="text" id="li-email" class="fi" placeholder="e.g. moses@ihsr.com" autocomplete="off">
+        <div class="ferr" id="li-email-err"></div>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="li-pwd" class="fi" placeholder="••••••••" autocomplete="off">
+        <div class="ferr" id="li-pwd-err">Incorrect password. Please try again.</div>
+      </div>
+      <div class="form-group">
+        <label>Select Shift</label>
+        <div class="shift-row">
+          <button class="shift-btn active" data-s="AM" onclick="selShift(this)">☀️ AM Shift</button>
+          <button class="shift-btn" data-s="PM" onclick="selShift(this)">🌙 PM Shift</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="li-date" class="fi">
+      </div>
+      <button class="login-btn" onclick="doLogin()">Sign In →</button>
+      <div class="admin-link"><a onclick="openAdminLoginModal()">⚙️ Admin Panel</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app">
+  <div class="topbar">
+    <div class="tb-logo">
+      <div class="tl-icon"><svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM2 13h20v2H2z"/></svg></div>
+      <span id="tb-company">Inbound Shift Report</span>
+    </div>
+    <div class="tb-sep" style="width:1px;height:22px;background:var(--border)"></div>
+    <input type="date" id="hdr-date" onchange="changeDate()" style="padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;outline:none">
+    <div class="shift-pills">
+      <button id="pill-AM" class="active" onclick="changeShift('AM')">AM</button>
+      <button id="pill-PM" onclick="changeShift('PM')">PM</button>
+    </div>
+    <div class="tb-right">
+      <div class="user-pill">
+        <div class="user-av" id="hdr-av">--</div>
+        <div><div class="ui-name" id="hdr-name">—</div><div class="ui-role" id="hdr-role">—</div></div>
+      </div>
+      <button class="tb-btn outline" onclick="openHistory()"><svg fill="none" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>History</button>
+      <button class="tb-btn report" onclick="openReportModal()"><svg fill="none" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Report</button>
+      <button class="tb-btn save" onclick="saveShift()"><svg fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>Save</button>
+      <button class="tb-btn admin-tb" id="adminBtn" style="display:none" onclick="openAdminPanel()"><svg fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>Admin</button>
+      <button class="tb-btn logout" onclick="doLogout()"><svg fill="none" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>Logout</button>
+    </div>
+  </div>
+  <div class="app-body">
+    <nav class="sidebar">
+      <div class="sb-section">
+        <div class="sb-label">Operations</div>
+        <button class="nav-item active" onclick="showPage('overview',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Shift Overview</button>
+        <button class="nav-item" onclick="showPage('appts',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2m-4 0a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Appointments<span class="nb nb-blue" id="nb-appts">0</span></button>
+        <button class="nav-item" onclick="showPage('wip',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Work In Progress<span class="nb nb-blue" id="nb-wip">0</span></button>
+        <button class="nav-item" onclick="showPage('priority',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>Priority Appts<span class="nb nb-red" id="nb-pri">0</span></button>
+      </div>
+      <div class="sb-div"></div>
+      <div class="sb-section">
+        <div class="sb-label">Production KPIs</div>
+        <button class="nav-item" onclick="showPage('fashion',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>Fashion KPI</button>
+        <button class="nav-item" onclick="showPage('perfumery',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>Perfumery KPI</button>
+        <button class="nav-item" onclick="showPage('putaway',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>Putaway KPI</button>
+      </div>
+      <div class="sb-div"></div>
+      <div class="sb-section">
+        <div class="sb-label">Communication</div>
+        <button class="nav-item" onclick="showPage('notes',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Issues & Notes</button>
+        <button class="nav-item" onclick="showPage('email',this)"><svg class="ni" fill="none" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>Email Summary</button>
+      </div>
+      <div class="sb-div"></div>
+      <div class="sb-user">
+        <div class="su-name" id="sb-name">—</div>
+        <div class="su-email" id="sb-email">—</div>
+        <span class="su-role sr-user" id="sb-role">User</span>
+      </div>
+    </nav>
+    <main class="main">
+      <!-- OVERVIEW -->
+      <div id="page-overview" class="page active">
+        <div class="ph"><div class="ph-left"><h2>📋 Shift Overview</h2><div class="ph-sub">General shift notes and handover context</div></div></div>
+        <div class="info-grid">
+          <div class="info-tile"><div class="it-label">Shift</div><div class="it-val teal" id="tile-shift">—</div></div>
+          <div class="info-tile"><div class="it-label">Officer on Duty</div><div class="it-val" id="tile-officer">—</div></div>
+          <div class="info-tile"><div class="it-label">Date</div><div class="it-val" id="tile-date">—</div></div>
+        </div>
+        <div class="card"><div class="card-title">Shift Notes</div>
+          <textarea class="notes-ta" id="shiftOverview" rows="5" placeholder="Enter shift overview and handover notes..."></textarea>
+        </div>
+        <div class="card"><div class="card-title">Quick Stats</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <div style="padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:12px">Appointments: <strong id="qs-a">0</strong></div>
+            <div style="padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:12px">WIP: <strong id="qs-w">0</strong></div>
+            <div style="padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:12px">Priority: <strong id="qs-p">0</strong></div>
+            <div style="padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:12px">Fashion Qty: <strong id="qs-fq">0</strong></div>
+            <div style="padding:5px 12px;background:#fff;border:1px solid var(--border);border-radius:20px;font-size:12px">Perf Qty: <strong id="qs-pq">0</strong></div>
+          </div>
+        </div>
+      </div>
+      <!-- APPOINTMENTS -->
+      <div id="page-appts" class="page">
+        <div class="ph"><div class="ph-left"><h2>📦 Appointments Processed</h2><div class="ph-sub">Qty = 0 saved as N/A. All entries timestamped.</div></div>
+          <div class="ph-actions"><button class="btn btn-teal" onclick="toggleForm('apptForm')"><svg fill="none" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>Add Appointment</button></div>
+        </div>
+        <div class="appt-form" id="apptForm">
+          <div class="af-title"><div class="af-dot" style="background:var(--teal)">+</div>New Appointment</div>
+          <div class="fr fr2">
+            <div class="ff" data-tip="Select appointment type"><label>Type <span class="req">*</span></label>
+              <select id="f-type" onchange="handleFType()"><option value="Appointment No.">Appointment No.</option><option value="Perf Appt No.">Perf Appt No.</option><option value="Dublin">Dublin</option><option value="Birmingham">Birmingham</option><option value="Others">Others (specify)</option></select>
+            </div>
+            <div class="ff" data-tip="Enter appointment number"><label>Appointment No. <span class="req">*</span></label><input type="text" id="f-apptno" placeholder="e.g. 443148"></div>
+          </div>
+          <div class="fr" id="f-others-row" style="display:none"><div class="ff"><label>Specify Type</label><input type="text" id="f-othersspec" placeholder="Describe type"></div></div>
+          <div class="fr fr4">
+            <div class="ff" data-tip="Quantity — enter 0 for N/A"><label>Qty <span class="req">*</span></label><input type="number" id="f-qty" min="0" placeholder="0"></div>
+            <div class="ff" data-tip="Department code e.g. 101,117,119"><label>Dept</label><input type="text" id="f-dept" placeholder="e.g. 101"></div>
+            <div class="ff"><label>Merret Updated</label><select id="f-merret"><option value="Y">Y — Yes</option><option value="N">N — No</option></select></div>
+            <div class="ff"><label>App Updated</label><select id="f-app"><option value="Y">Y — Yes</option><option value="N">N — No</option></select></div>
+          </div>
+          <div class="fr fr3">
+            <div class="ff"><label>Putaway Complete</label><select id="f-putawayc"><option value="Y">Y</option><option value="N">N</option></select></div>
+            <div class="ff"><label>Putaway Verification</label><select id="f-putawayv"><option value="Y">Y</option><option value="N">N</option></select></div>
+            <div class="ff"><label>Priority?</label><select id="f-priority"><option value="no">No</option><option value="yes">Yes — Priority</option></select></div>
+          </div>
+          <div class="ff-actions"><button class="btn btn-outline" onclick="closeForm('apptForm')">Cancel</button><button class="btn btn-teal" onclick="saveAppt()">Save</button></div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl"><thead><tr><th>Type</th><th>Appt No.</th><th>Qty</th><th>Dept</th><th>Merret</th><th>App</th><th>Putaway</th><th>Verif.</th><th>Logged By</th><th></th></tr></thead>
+          <tbody id="appts-tbody"></tbody></table>
+          <button class="add-row-btn" onclick="toggleForm('apptForm')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="13" height="13"><path d="M12 4v16m8-8H4"/></svg>Add Appointment</button>
+        </div>
+      </div>
+      <!-- WIP -->
+      <div id="page-wip" class="page">
+        <div class="ph"><div class="ph-left"><h2>🔄 Work In Progress</h2><div class="ph-sub">Appointments currently in progress</div></div>
+          <div class="ph-actions"><button class="btn btn-teal" onclick="toggleForm('wipForm')"><svg fill="none" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>Add WIP</button></div>
+        </div>
+        <div class="appt-form" id="wipForm">
+          <div class="af-title"><div class="af-dot" style="background:var(--blue)">+</div>New WIP Entry</div>
+          <div class="fr fr4">
+            <div class="ff"><label>Appointment No. <span class="req">*</span></label><input type="text" id="w-apptno" placeholder="e.g. 443151"></div>
+            <div class="ff"><label>Qty</label><input type="number" id="w-qty" min="0" placeholder="0"></div>
+            <div class="ff"><label>Brand</label><input type="text" id="w-brand" placeholder="e.g. JAQUMOUS"></div>
+            <div class="ff"><label>Bench</label><input type="text" id="w-bench" placeholder="e.g. BENCH 3"></div>
+          </div>
+          <div class="ff-actions"><button class="btn btn-outline" onclick="closeForm('wipForm')">Cancel</button><button class="btn btn-teal" onclick="saveWip()">Save</button></div>
+        </div>
+        <div class="cards-grid" id="wip-cards"><div class="section-empty">No WIP entries yet.</div></div>
+      </div>
+      <!-- PRIORITY -->
+      <div id="page-priority" class="page">
+        <div class="ph"><div class="ph-left"><h2>⭐ Priority Appointments</h2><div class="ph-sub" style="color:#dc2626">Shown in RED on all reports</div></div>
+          <div class="ph-actions"><button class="btn btn-red" onclick="toggleForm('priForm')"><svg fill="none" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>Add Priority</button></div>
+        </div>
+        <div class="appt-form red-b" id="priForm">
+          <div class="af-title" style="color:#dc2626"><div class="af-dot" style="background:var(--red)">!</div>New Priority Appointment</div>
+          <div class="fr fr3">
+            <div class="ff"><label>Appointment No. <span class="req">*</span></label><input type="text" id="p-apptno" placeholder="e.g. 443151"></div>
+            <div class="ff"><label>Qty</label><input type="number" id="p-qty" min="0" placeholder="0"></div>
+            <div class="ff"><label>Brand</label><input type="text" id="p-brand" placeholder="e.g. SKIMS"></div>
+          </div>
+          <div class="ff-actions"><button class="btn btn-outline" onclick="closeForm('priForm')">Cancel</button><button class="btn btn-red" onclick="savePriority()">Add Priority</button></div>
+        </div>
+        <div class="cards-grid" id="pri-cards"><div class="section-empty">No priority appointments.</div></div>
+      </div>
+      <!-- FASHION KPI -->
+      <div id="page-fashion" class="page">
+        <div class="ph"><div class="ph-left"><h2>👗 Fashion Production KPI</h2><div class="ph-sub">Target: 34 units/hr</div></div></div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kc-l">Processing Staff</div><div class="kc-v" id="fk-staff">0</div></div>
+          <div class="kpi-card"><div class="kc-l">Processing Hours</div><div class="kc-v" id="fk-hrs">0</div><div class="kc-s">Staff × 7.5</div></div>
+          <div class="kpi-card"><div class="kc-l">Target/Hour</div><div class="kc-v">34</div></div>
+          <div class="kpi-card"><div class="kc-l">Target Units</div><div class="kc-v" id="fk-target">0</div></div>
+          <div class="kpi-card"><div class="kc-l">Actual Units</div><div class="kc-v" id="fk-actual">0</div></div>
+          <div class="kpi-card hl"><div class="kc-l">KPI %</div><div class="kc-v" id="fk-pct">0%</div><div class="kpi-bar"><div class="kpi-fill" id="fk-bar" style="width:0%"></div></div></div>
+        </div>
+        <div class="kpi-inputs">
+          <div class="ki-card"><div class="ki-label">Processing Staff</div><input type="number" class="ki-input" id="f-staff" value="5" min="0" oninput="calcFashion()"></div>
+          <div class="ki-card"><div class="ki-label">Processing Hours (auto)</div><input type="number" class="ki-input" id="f-hrs" value="37.5" readonly style="background:#f8fafc;color:var(--text2)"></div>
+        </div>
+      </div>
+      <!-- PERFUMERY KPI -->
+      <div id="page-perfumery" class="page">
+        <div class="ph"><div class="ph-left"><h2>💎 Perfumery Production KPI</h2><div class="ph-sub">Target: 321 units/hr</div></div></div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kc-l">Processing Staff</div><div class="kc-v" id="pk-staff">0</div></div>
+          <div class="kpi-card"><div class="kc-l">Processing Hours</div><div class="kc-v" id="pk-hrs">0</div><div class="kc-s">Staff × 7.5</div></div>
+          <div class="kpi-card"><div class="kc-l">Target/Hour</div><div class="kc-v">321</div></div>
+          <div class="kpi-card"><div class="kc-l">Target Units</div><div class="kc-v" id="pk-target">0</div></div>
+          <div class="kpi-card"><div class="kc-l">Actual Units</div><div class="kc-v" id="pk-actual">0</div></div>
+          <div class="kpi-card hl"><div class="kc-l">KPI %</div><div class="kc-v" id="pk-pct">0%</div><div class="kpi-bar"><div class="kpi-fill" id="pk-bar" style="width:0%"></div></div></div>
+        </div>
+        <div class="kpi-inputs">
+          <div class="ki-card"><div class="ki-label">Processing Staff</div><input type="number" class="ki-input" id="p-staff" value="0" min="0" oninput="calcPerf()"></div>
+          <div class="ki-card"><div class="ki-label">Processing Hours (auto)</div><input type="number" class="ki-input" id="p-hrs" value="0" readonly style="background:#f8fafc;color:var(--text2)"></div>
+        </div>
+      </div>
+      <!-- PUTAWAY KPI -->
+      <div id="page-putaway" class="page">
+        <div class="ph"><div class="ph-left"><h2>📦 Putaway Summary KPI</h2><div class="ph-sub">Target: 133 units/hr (1000÷7.5)</div></div></div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kc-l">Putaway Staff</div><div class="kc-v" id="pw-staff">0</div></div>
+          <div class="kpi-card"><div class="kc-l">Processing Hours</div><div class="kc-v" id="pw-hrs">0</div></div>
+          <div class="kpi-card"><div class="kc-l">Target/Hour</div><div class="kc-v">133</div></div>
+          <div class="kpi-card"><div class="kc-l">Target Units</div><div class="kc-v" id="pw-target">0</div></div>
+          <div class="kpi-card"><div class="kc-l">Actual Units</div><div class="kc-v" id="pw-actual">0</div></div>
+          <div class="kpi-card hl"><div class="kc-l">KPI %</div><div class="kc-v" id="pw-pct">0%</div><div class="kpi-bar"><div class="kpi-fill" id="pw-bar" style="width:0%"></div></div></div>
+        </div>
+        <div class="kpi-inputs" style="grid-template-columns:repeat(3,1fr)">
+          <div class="ki-card"><div class="ki-label">Putaway Staff</div><input type="number" class="ki-input" id="pw-staff-in" value="0" min="0" oninput="calcPutaway()"></div>
+          <div class="ki-card"><div class="ki-label">Processing Hours (auto)</div><input type="number" class="ki-input" id="pw-hrs-in" value="0" readonly style="background:#f8fafc;color:var(--text2)"></div>
+          <div class="ki-card"><div class="ki-label">Actual Units</div><input type="number" class="ki-input" id="pw-actual-in" value="0" min="0" oninput="calcPutaway()"></div>
+        </div>
+      </div>
+      <!-- NOTES -->
+      <div id="page-notes" class="page">
+        <div class="ph"><div class="ph-left"><h2>📝 Issues & Notes</h2><div class="ph-sub">Record issues and handover notes for the incoming team</div></div></div>
+        <div class="card"><div class="card-title">Issues, Exceptions & Notes</div>
+          <textarea class="notes-ta" id="issuesNotes" style="min-height:220px" placeholder="Document any issues, escalations, open items..."></textarea>
+        </div>
+      </div>
+      <!-- EMAIL -->
+      <div id="page-email" class="page">
+        <div class="ph"><div class="ph-left"><h2>📧 Inbound Email Summary</h2><div class="ph-sub">Inbox totals at start and end of day (numbers only)</div></div></div>
+        <div class="email-grid">
+          <div class="ei-card"><div class="ei-label">S.O.D Inbox Total</div><input class="ei-input" type="number" id="sod-inbox" placeholder="0" min="0" oninput="calcEmail()"></div>
+          <div class="ei-card"><div class="ei-label">E.O.D Inbox Total</div><input class="ei-input" type="number" id="eod-inbox" placeholder="0" min="0" oninput="calcEmail()"></div>
+        </div>
+        <div class="card" style="margin-top:14px"><div class="card-title">Analysis</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <div class="kpi-card"><div class="kc-l">SOD Total</div><div class="kc-v" id="em-sod" style="font-size:22px">0</div></div>
+            <div class="kpi-card"><div class="kc-l">EOD Total</div><div class="kc-v" id="em-eod" style="font-size:22px">0</div></div>
+            <div class="kpi-card hl"><div class="kc-l">Change</div><div class="kc-v" id="em-delta" style="font-size:22px">0</div><div class="kc-s" id="em-desc">—</div></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="adminPanel">
+  <div class="ap-header">
+    <div class="aph-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="3"/><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>Admin Panel<span class="aph-badge">Restricted Access</span></div>
+    <button class="aph-close" onclick="closeAdminPanel()">✕ Close</button>
+  </div>
+  <div class="ap-body">
+    <div class="ap-tabs">
+      <button class="ap-tab active" onclick="apTab('dashboard',this)"><svg fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</button>
+      <button class="ap-tab" onclick="apTab('users',this)"><svg fill="none" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Users</button>
+      <button class="ap-tab" onclick="apTab('log',this)"><svg fill="none" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Access Log</button>
+      <button class="ap-tab" onclick="apTab('records',this)"><svg fill="none" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Shift Records</button>
+      <button class="ap-tab" onclick="apTab('settings',this)"><svg fill="none" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>Settings</button>
+    </div>
+    <div class="ap-content">
+      <div id="ap-dashboard" class="ap-section active">
+        <div class="ph"><div class="ph-left"><h2>Dashboard</h2></div></div>
+        <div class="stat-row">
+          <div class="stat-tile"><div class="st-icon">👥</div><div class="st-val" id="ap-users">0</div><div class="st-label">Registered Users</div></div>
+          <div class="stat-tile"><div class="st-icon">📅</div><div class="st-val" id="ap-shifts">0</div><div class="st-label">Saved Shift Records</div></div>
+          <div class="stat-tile"><div class="st-icon">🔐</div><div class="st-val" id="ap-today">0</div><div class="st-label">Logins Today</div></div>
+          <div class="stat-tile"><div class="st-icon">📊</div><div class="st-val" id="ap-total">0</div><div class="st-label">All-Time Logins</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="card"><div class="card-title">Recent Logins</div><div id="ap-recent-logins"></div></div>
+          <div class="card"><div class="card-title">Registered Users</div><div id="ap-user-list"></div></div>
+        </div>
+      </div>
+      <div id="ap-users" class="ap-section">
+        <div class="ph"><div class="ph-left"><h2>User Registry</h2><div class="ph-sub">Manage staff access — any email format accepted</div></div>
+          <div class="ph-actions"><button class="btn btn-navy" onclick="openAddUser()"><svg fill="none" viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>Register User</button></div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
+          <tbody id="users-tbody"></tbody></table>
+        </div>
+      </div>
+      <div id="ap-log" class="ap-section">
+        <div class="ph"><div class="ph-left"><h2>Access Log</h2></div>
+          <div class="ph-actions">
+            <input type="date" id="log-date" onchange="loadLog()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;outline:none">
+            <select id="log-shift" onchange="loadLog()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;outline:none"><option value="">All Shifts</option><option value="AM">AM</option><option value="PM">PM</option></select>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Shift</th><th>Date</th><th>Time</th></tr></thead>
+          <tbody id="log-tbody"></tbody></table>
+        </div>
+      </div>
+      <div id="ap-records" class="ap-section">
+        <div class="ph"><div class="ph-left"><h2>Shift Records</h2><div class="ph-sub">Search all saved shift data</div></div></div>
+        <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="date" id="rec-date" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;flex:1">
+          <select id="rec-shift" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none"><option value="">All Shifts</option><option value="AM">AM Only</option><option value="PM">PM Only</option></select>
+          <button class="btn btn-navy" onclick="searchRecords()">Search</button>
+          <button class="btn btn-outline" onclick="searchRecords('all')">Show All</button>
+        </div>
+        <div id="rec-results"></div>
+      </div>
+      <div id="ap-settings" class="ap-section">
+        <div class="ph"><div class="ph-left"><h2>Settings</h2></div></div>
+        <div class="card"><div class="card-title">Company</div>
+          <div class="fr fr2" style="margin-bottom:12px">
+            <div class="ff"><label>Company Name</label><input type="text" id="cfg-company" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;width:100%"></div>
+          </div>
+          <button class="btn btn-navy" onclick="saveSettings()">Save Settings</button>
+        </div>
+        <div class="card"><div class="card-title" style="color:var(--red)">⚠️ Data Management</div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-outline" onclick="exportData()">📤 Export All Data</button>
+            <button class="btn btn-outline" onclick="document.getElementById('imp-file').click()">📥 Import Data</button>
+            <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importData(event)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal modal-sm">
+    <div class="mh"><h3 id="conf-title">Confirm</h3><button class="mclose" onclick="closeOverlay('confirmOverlay')">✕</button></div>
+    <div class="mb" style="text-align:center">
+      <div class="confirm-icon" id="conf-icon"></div>
+      <div class="confirm-msg" id="conf-msg"></div>
+      <div class="confirm-sub" id="conf-sub"></div>
+    </div>
+    <div class="mf"><button class="btn btn-outline" onclick="closeOverlay('confirmOverlay')">Cancel</button><button class="btn" id="conf-ok" onclick="execConfirm()">Confirm</button></div>
+  </div>
+</div>
+<div class="overlay" id="editApptOverlay">
+  <div class="modal modal-md">
+    <div class="mh"><h3>Edit Appointment</h3><button class="mclose" onclick="closeOverlay('editApptOverlay')">✕</button></div>
+    <div class="mb">
+      <div style="background:#fff7ed;border:1px solid #fde68a;border-radius:7px;padding:9px 13px;margin-bottom:14px;font-size:11px;color:#92400e">⚠️ Editing a logged entry — your name will be recorded.</div>
+      <div class="fr fr2"><div class="ff"><label>Type</label><select id="e-type" onchange="handleEType()"><option value="Appointment No.">Appointment No.</option><option value="Perf Appt No.">Perf Appt No.</option><option value="Dublin">Dublin</option><option value="Birmingham">Birmingham</option><option value="Others">Others</option></select></div><div class="ff"><label>Appointment No. <span class="req">*</span></label><input type="text" id="e-apptno"></div></div>
+      <div class="fr" id="e-others-row" style="display:none"><div class="ff"><label>Specify</label><input type="text" id="e-othersspec"></div></div>
+      <div class="fr fr4"><div class="ff"><label>Qty</label><input type="number" id="e-qty" min="0"></div><div class="ff"><label>Dept</label><input type="text" id="e-dept"></div><div class="ff"><label>Merret</label><select id="e-merret"><option value="Y">Y</option><option value="N">N</option></select></div><div class="ff"><label>App</label><select id="e-app"><option value="Y">Y</option><option value="N">N</option></select></div></div>
+      <div class="fr fr3"><div class="ff"><label>Putaway Complete</label><select id="e-putawayc"><option value="Y">Y</option><option value="N">N</option></select></div><div class="ff"><label>Putaway Verif.</label><select id="e-putawayv"><option value="Y">Y</option><option value="N">N</option></select></div><div class="ff"><label>Priority?</label><select id="e-priority"><option value="no">No</option><option value="yes">Yes</option></select></div></div>
+    </div>
+    <div class="mf"><button class="btn btn-outline" onclick="closeOverlay('editApptOverlay')">Cancel</button><button class="btn btn-teal" onclick="commitEdit()">Save Changes</button></div>
+  </div>
+</div>
+<div class="overlay" id="addUserOverlay">
+  <div class="modal modal-md">
+    <div class="mh"><h3 id="add-user-title">Register User</h3><button class="mclose" onclick="closeOverlay('addUserOverlay')">✕</button></div>
+    <div class="mb">
+      <div class="fr fr2">
+        <div class="ff"><label>Full Name <span class="req">*</span></label><input type="text" id="u-name" placeholder="Full name"></div>
+        <div class="ff"><label>Email Address <span class="req">*</span></label><input type="text" id="u-email" placeholder="Any email format"><div class="ferr" id="u-err"></div></div>
+      </div>
+      <div class="fr fr2">
+        <div class="ff"><label>Role</label><select id="u-role"><option value="user">User (Staff)</option><option value="admin">Admin (Manager)</option></select></div>
+        <div class="ff"><label>Password <span class="req">*</span></label><input type="text" id="u-pwd" placeholder="Set password" style="font-family:'DM Mono',monospace"></div>
+      </div>
+      <div class="fr"><div class="ff"><label>Notes / Position</label><input type="text" id="u-notes" placeholder="e.g. AM Supervisor"></div></div>
+    </div>
+    <div class="mf"><button class="btn btn-outline" onclick="closeOverlay('addUserOverlay')">Cancel</button><button class="btn btn-navy" onclick="saveUser()">Register User</button></div>
+  </div>
+</div>
+<div class="overlay" id="adminLoginOverlay">
+  <div class="modal modal-sm">
+    <div class="mh"><h3>⚙️ Admin Panel</h3><button class="mclose" onclick="closeOverlay('adminLoginOverlay')">✕</button></div>
+    <div class="mb">
+      <div class="form-group"><label>Email</label><input type="text" id="al-email" class="fi" placeholder="admin email" autocomplete="off"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="al-pwd" class="fi" placeholder="••••••••" autocomplete="off"><div class="ferr" id="al-err">Invalid credentials or insufficient access.</div></div>
+    </div>
+    <div class="mf"><button class="btn btn-outline" onclick="closeOverlay('adminLoginOverlay')">Cancel</button><button class="btn btn-navy" onclick="doAdminLogin()">Access Admin Panel</button></div>
+  </div>
+</div>
+<div class="overlay" id="historyOverlay">
+  <div class="modal modal-lg">
+    <div class="mh"><h3>📅 Shift History</h3><button class="mclose" onclick="closeOverlay('historyOverlay')">✕</button></div>
+    <div class="mb">
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input type="date" id="hist-date" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none">
+        <select id="hist-shift" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none"><option value="">All</option><option value="AM">AM</option><option value="PM">PM</option></select>
+        <button class="btn btn-navy" onclick="loadHistory()">Search</button>
+        <button class="btn btn-outline" onclick="loadHistory('all')">Show All</button>
+      </div>
+      <div id="hist-list"></div>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="histViewOverlay">
+  <div class="modal modal-xl"><div class="mh"><h3 id="hv-title">Record</h3><button class="mclose" onclick="closeOverlay('histViewOverlay')">✕</button></div><div class="mb" id="hv-body"></div></div>
+</div>
+<div class="overlay" id="reportOverlay">
+  <div class="modal modal-lg">
+    <div class="mh"><h3>📊 Generate Report</h3><button class="mclose" onclick="closeOverlay('reportOverlay')">✕</button></div>
+    <div class="mb">
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <div onclick="selReport(this,'AM')" style="flex:1;padding:12px;border:2px solid var(--teal);border-radius:8px;text-align:center;cursor:pointer;background:var(--teal-l)" class="ropt selected"><div style="font-size:20px">☀️</div><div style="font-size:12px;font-weight:600">AM Report</div></div>
+        <div onclick="selReport(this,'PM')" style="flex:1;padding:12px;border:2px solid var(--border);border-radius:8px;text-align:center;cursor:pointer" class="ropt"><div style="font-size:20px">🌙</div><div style="font-size:12px;font-weight:600">PM Report</div></div>
+        <div onclick="selReport(this,'FULL')" style="flex:1;padding:12px;border:2px solid var(--border);border-radius:8px;text-align:center;cursor:pointer" class="ropt"><div style="font-size:20px">📋</div><div style="font-size:12px;font-weight:600">Full Day</div></div>
+      </div>
+      <div style="margin-bottom:12px"><label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Email Recipients (optional)</label><input type="text" id="rep-email" placeholder="manager@email.com" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none"></div>
+      <div id="rep-preview" style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px;max-height:260px;overflow-y:auto;font-size:11px;font-family:'DM Mono',monospace;white-space:pre-wrap;color:var(--text)">Click Preview to see report...</div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-outline" onclick="closeOverlay('reportOverlay')">Close</button>
+      <button class="btn btn-outline" onclick="previewReport()">Preview</button>
+      <button class="btn btn-navy" onclick="emailReport()">📧 Email</button>
+      <button class="btn btn-teal" onclick="printReport()">🖨️ Print / PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+<div id="printDoc"></div>
+
+<script>
+const API = '';  // same origin — server.js serves this file
+let S = { user:null, date:'', shift:'AM', data:null, reportType:'AM', editApptId:null, confirmCb:null, editUserId:null };
+
+// ── API helpers ──────────────────────────────────────────────
+async function api(method, path, body){
+  try{
+    const opts = { method, headers:{'Content-Type':'application/json'} };
+    if(body) opts.body = JSON.stringify(body);
+    const r = await fetch(API+path, opts);
+    return await r.json();
+  } catch(e){ toast('Server error: '+e.message,'error'); return null; }
+}
+
+// ── Init ─────────────────────────────────────────────────────
+window.onload = function(){
+  document.getElementById('li-date').value = new Date().toISOString().split('T')[0];
+};
+
+// ── Login ────────────────────────────────────────────────────
+function selShift(btn){ document.querySelectorAll('.shift-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+
+async function doLogin(){
+  const email = document.getElementById('li-email').value.trim().toLowerCase();
+  const pwd   = document.getElementById('li-pwd').value.trim();
+  const shift = (document.querySelector('.shift-btn.active')||{}).dataset?.s || 'AM';
+  const date  = document.getElementById('li-date').value || new Date().toISOString().split('T')[0];
+  document.getElementById('li-email-err').classList.remove('show');
+  document.getElementById('li-pwd-err').classList.remove('show');
+  if(!email){ showFieldErr('li-email-err','Please enter your email.'); return; }
+  if(!pwd)  { document.getElementById('li-pwd-err').classList.add('show'); return; }
+  const res = await api('POST','/api/login',{email,pwd,shift,date});
+  if(!res) return;
+  if(!res.ok){ 
+    if(res.error && res.error.toLowerCase().includes('password')) document.getElementById('li-pwd-err').classList.add('show');
+    else showFieldErr('li-email-err', res.error || 'Login failed.');
+    return; 
+  }
+  S.user=res.user; S.date=date; S.shift=shift;
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+  setupUI(); loadShift();
+}
+
+function showFieldErr(id,msg){ const el=document.getElementById(id); el.textContent=msg; el.classList.add('show'); }
+
+function doLogout(){
+  confirm2('Sign Out?','Are you sure?','','warn','Sign Out','btn-red',()=>{
+    S.user=null; S.data=null;
+    document.getElementById('app').classList.remove('visible');
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('li-email').value='';
+    document.getElementById('li-pwd').value='';
+  });
+}
+
+// ── Setup UI ─────────────────────────────────────────────────
+async function setupUI(){
+  const u=S.user;
+  const cfg = await api('GET','/api/settings') || {};
+  document.getElementById('tb-company').textContent = cfg.company||'Inbound Shift Report';
+  document.getElementById('hdr-date').value = S.date;
+  document.getElementById('hdr-name').textContent = u.name;
+  document.getElementById('hdr-role').textContent = u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'Staff';
+  document.getElementById('hdr-av').textContent = u.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sb-name').textContent = u.name;
+  document.getElementById('sb-email').textContent = u.email;
+  const rb=document.getElementById('sb-role');
+  rb.textContent=u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User';
+  rb.className='su-role '+(u.role==='superadmin'?'sr-super':u.role==='admin'?'sr-admin':'sr-user');
+  document.getElementById('pill-AM').classList.toggle('active',S.shift==='AM');
+  document.getElementById('pill-PM').classList.toggle('active',S.shift==='PM');
+  document.getElementById('adminBtn').style.display=(u.role==='admin'||u.role==='superadmin')?'':'none';
+  updateTiles();
+}
+
+function updateTiles(){
+  document.getElementById('tile-shift').textContent=S.shift;
+  document.getElementById('tile-officer').textContent=S.user?S.user.name:'—';
+  document.getElementById('tile-date').textContent=S.date?new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):'—';
+}
+
+// ── Shift data ───────────────────────────────────────────────
+function defaultData(){ return { date:S.date, shift:S.shift, officer:S.user.name, officerEmail:S.user.email, shiftOverview:'', appointments:[], workInProgress:[], priorityAppointments:[], fashionStaff:5, perfStaff:0, putawayStaff:0, putawayActual:0, issuesNotes:'', sodInbox:'', eodInbox:'' }; }
+
+async function loadShift(){
+  const d = await api('GET',`/api/shift?date=${S.date}&shift=${S.shift}`);
+  S.data = d || defaultData();
+  renderAll();
+}
+
+function collectData(){
+  if(!S.data) return;
+  S.data.shiftOverview = document.getElementById('shiftOverview').value;
+  S.data.issuesNotes   = document.getElementById('issuesNotes').value;
+  S.data.fashionStaff  = +document.getElementById('f-staff').value||0;
+  S.data.perfStaff     = +document.getElementById('p-staff').value||0;
+  S.data.putawayStaff  = +document.getElementById('pw-staff-in').value||0;
+  S.data.putawayActual = +document.getElementById('pw-actual-in').value||0;
+  S.data.sodInbox      = +document.getElementById('sod-inbox').value||0;
+  S.data.eodInbox      = +document.getElementById('eod-inbox').value||0;
+}
+
+async function saveShift(){
+  collectData();
+  if(!S.data) return;
+  S.data.savedBy=S.user.name; S.data.savedAt=new Date().toISOString();
+  const res = await api('POST','/api/shift', S.data);
+  if(res&&res.ok) toast('Shift saved!','success');
+}
+
+function changeDate(){ collectData(); if(S.data) api('POST','/api/shift',S.data); S.date=document.getElementById('hdr-date').value; loadShift(); updateTiles(); }
+function changeShift(s){ collectData(); if(S.data) api('POST','/api/shift',S.data); S.shift=s; document.getElementById('pill-AM').classList.toggle('active',s==='AM'); document.getElementById('pill-PM').classList.toggle('active',s==='PM'); loadShift(); updateTiles(); }
+
+// ── Render ───────────────────────────────────────────────────
+function renderAll(){
+  const d=S.data;
+  document.getElementById('shiftOverview').value=d.shiftOverview||'';
+  document.getElementById('issuesNotes').value=d.issuesNotes||'';
+  document.getElementById('f-staff').value=d.fashionStaff||5;
+  document.getElementById('p-staff').value=d.perfStaff||0;
+  document.getElementById('pw-staff-in').value=d.putawayStaff||0;
+  document.getElementById('pw-actual-in').value=d.putawayActual||0;
+  document.getElementById('sod-inbox').value=d.sodInbox||'';
+  document.getElementById('eod-inbox').value=d.eodInbox||'';
+  renderAppts(); renderWip(); renderPriority();
+  calcFashion(); calcPerf(); calcPutaway(); calcEmail();
+  updateBadges();
+}
+
+function typeBadge(t){ const m={'Appointment No.':['b-appt','Appt'],'Perf Appt No.':['b-perf','Perf'],'Dublin':['b-dublin','Dublin'],'Birmingham':['b-birm','Birm']}; const [c,l]=m[t]||['b-other',t.slice(0,5)]; return `<span class="badge ${c}">${l}</span>`; }
+function ynBadge(v){ return v==='Y'?'<span class="badge b-y">Y</span>':v==='N'?'<span class="badge b-n">N</span>':'<span class="badge b-na">N/A</span>'; }
+function qtyD(q){ return(!q||q==0)?'<span class="badge b-na">N/A</span>':`<span class="td-mono">${q}</span>`; }
+function fmtTs(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function initials(n){ return(n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase(); }
+function kpiColor(p){ return p>=100?'var(--green)':p>=75?'var(--teal)':p>=50?'var(--amber)':'var(--red)'; }
+
+function renderAppts(){
+  const tb=document.getElementById('appts-tbody'), a=S.data.appointments||[];
+  if(!a.length){ tb.innerHTML='<tr><td colspan="10" class="section-empty">No appointments yet.</td></tr>'; return; }
+  tb.innerHTML=a.map(r=>{
+    const isP=r.isPriority, al=r.othersSpec?`${r.apptNo} <small style="color:var(--text2)">(${r.othersSpec})</small>`:r.apptNo;
+    return `<tr class="${isP?'td-pri':''}">
+      <td>${typeBadge(r.type)}</td>
+      <td class="td-appt td-mono">${al}${isP?' <span style="color:#ef4444;font-size:9px">★</span>':''}</td>
+      <td>${qtyD(r.qty)}</td><td class="td-mono">${r.dept||'—'}</td>
+      <td>${ynBadge(r.merretUpdated)}</td><td>${ynBadge(r.appUpdated)}</td>
+      <td>${ynBadge(r.putawayComplete)}</td><td>${ynBadge(r.putawayVerification)}</td>
+      <td style="font-size:10px;color:var(--text3)"><div>${r.enteredBy||'—'}</div><div>${r.enteredAt?new Date(r.enteredAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):''}</div>${r.modifiedBy?`<div class="mod-tag">✏ ${r.modifiedBy}</div>`:''}</td>
+      <td><div class="acts">
+        <button class="act act-edit" onclick="startEditAppt('${r.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+        <button class="act act-del" onclick="delAppt('${r.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+      </div></td></tr>`;
+  }).join('');
+}
+
+function renderWip(){
+  const el=document.getElementById('wip-cards'), w=S.data.workInProgress||[];
+  if(!w.length){ el.innerHTML='<div class="section-empty">No WIP entries.</div>'; return; }
+  el.innerHTML=w.map(x=>`<div class="wip-card"><div class="wc-head"><div class="wc-appt">${x.apptNo||'—'}</div><span class="badge b-am">WIP</span></div>
+    <div class="wc-fields"><div class="wc-f"><div class="wf-l">Qty</div><div class="wf-v">${x.qty||'—'}</div></div><div class="wc-f"><div class="wf-l">Brand</div><div class="wf-v">${x.brand||'—'}</div></div><div class="wc-f"><div class="wf-l">Bench</div><div class="wf-v">${x.bench||'—'}</div></div></div>
+    <div class="wc-foot"><span class="wc-meta">${x.enteredBy||''}</span><button class="act act-del" onclick="delWip('${x.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
+  </div>`).join('');
+}
+
+function renderPriority(){
+  const el=document.getElementById('pri-cards'), p=S.data.priorityAppointments||[];
+  if(!p.length){ el.innerHTML='<div class="section-empty">No priority appointments.</div>'; return; }
+  el.innerHTML=p.map(x=>`<div class="wip-card p-card"><div class="wc-head"><div class="wc-appt">${x.apptNo||'—'}</div><span class="badge b-n">★ PRIORITY</span></div>
+    <div class="wc-fields"><div class="wc-f"><div class="wf-l">Qty</div><div class="wf-v">${x.qty||'—'}</div></div><div class="wc-f"><div class="wf-l">Brand</div><div class="wf-v">${x.brand||'—'}</div></div></div>
+    <div class="wc-foot"><span class="wc-meta">${x.enteredBy||''}</span><button class="act act-del" onclick="delPriority('${x.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
+  </div>`).join('');
+}
+
+function updateBadges(){
+  const a=S.data.appointments||[], w=S.data.workInProgress||[], p=S.data.priorityAppointments||[];
+  ['nb-appts','qs-a'].forEach(id=>document.getElementById(id).textContent=a.length);
+  ['nb-wip','qs-w'].forEach(id=>document.getElementById(id).textContent=w.length);
+  ['nb-pri','qs-p'].forEach(id=>document.getElementById(id).textContent=p.length);
+  document.getElementById('qs-fq').textContent=a.filter(x=>x.type==='Appointment No.').reduce((s,x)=>s+(+x.qty||0),0);
+  document.getElementById('qs-pq').textContent=a.filter(x=>x.type==='Perf Appt No.').reduce((s,x)=>s+(+x.qty||0),0);
+}
+
+// ── CRUD ─────────────────────────────────────────────────────
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+function handleFType(){ document.getElementById('f-others-row').style.display=document.getElementById('f-type').value==='Others'?'block':'none'; }
+function handleEType(){ document.getElementById('e-others-row').style.display=document.getElementById('e-type').value==='Others'?'block':'none'; }
+
+function saveAppt(){
+  const type=document.getElementById('f-type').value, apptNo=document.getElementById('f-apptno').value.trim();
+  if(!apptNo){ toast('Appointment No. required.','error'); return; }
+  const entry={id:uid(),type,apptNo,othersSpec:type==='Others'?document.getElementById('f-othersspec').value.trim():'',
+    qty:+document.getElementById('f-qty').value||0,dept:document.getElementById('f-dept').value.trim(),
+    merretUpdated:document.getElementById('f-merret').value,appUpdated:document.getElementById('f-app').value,
+    putawayComplete:document.getElementById('f-putawayc').value,putawayVerification:document.getElementById('f-putawayv').value,
+    isPriority:document.getElementById('f-priority').value==='yes',enteredBy:S.user.name,enteredAt:new Date().toISOString()};
+  if(entry.isPriority) S.data.priorityAppointments.push({id:uid(),apptNo:entry.apptNo,qty:entry.qty,brand:'',enteredBy:S.user.name,enteredAt:entry.enteredAt});
+  S.data.appointments.push(entry);
+  saveShift(); renderAppts(); renderPriority(); updateBadges(); closeForm('apptForm'); calcFashion(); calcPerf();
+  toast('Appointment added!','success');
+}
+
+function startEditAppt(id){
+  const r=S.data.appointments.find(a=>a.id===id); if(!r) return;
+  S.editApptId=id;
+  document.getElementById('e-type').value=r.type;
+  document.getElementById('e-apptno').value=r.apptNo;
+  document.getElementById('e-othersspec').value=r.othersSpec||'';
+  document.getElementById('e-others-row').style.display=r.type==='Others'?'block':'none';
+  document.getElementById('e-qty').value=r.qty;
+  document.getElementById('e-dept').value=r.dept||'';
+  document.getElementById('e-merret').value=r.merretUpdated;
+  document.getElementById('e-app').value=r.appUpdated;
+  document.getElementById('e-putawayc').value=r.putawayComplete;
+  document.getElementById('e-putawayv').value=r.putawayVerification;
+  document.getElementById('e-priority').value=r.isPriority?'yes':'no';
+  openOverlay('editApptOverlay');
+}
+
+function commitEdit(){
+  const r=S.data.appointments.find(a=>a.id===S.editApptId); if(!r) return;
+  confirm2('Confirm Edit',`Modify ${r.apptNo}?`,'Your name will be recorded.','warn','Save','btn-teal',()=>{
+    r.type=document.getElementById('e-type').value; r.apptNo=document.getElementById('e-apptno').value.trim();
+    r.othersSpec=r.type==='Others'?document.getElementById('e-othersspec').value.trim():'';
+    r.qty=+document.getElementById('e-qty').value||0; r.dept=document.getElementById('e-dept').value.trim();
+    r.merretUpdated=document.getElementById('e-merret').value; r.appUpdated=document.getElementById('e-app').value;
+    r.putawayComplete=document.getElementById('e-putawayc').value; r.putawayVerification=document.getElementById('e-putawayv').value;
+    r.isPriority=document.getElementById('e-priority').value==='yes'; r.modifiedBy=S.user.name; r.modifiedAt=new Date().toISOString();
+    saveShift(); renderAppts(); updateBadges(); calcFashion(); calcPerf(); closeOverlay('editApptOverlay'); toast('Updated!','success');
+  });
+}
+
+function delAppt(id){ const r=S.data.appointments.find(a=>a.id===id); if(!r) return; confirm2('Delete',`Delete ${r.apptNo}?`,'','danger','Delete','btn-red',()=>{ S.data.appointments=S.data.appointments.filter(a=>a.id!==id); saveShift(); renderAppts(); updateBadges(); calcFashion(); calcPerf(); }); }
+
+function saveWip(){
+  const apptNo=document.getElementById('w-apptno').value.trim(); if(!apptNo){ toast('Appointment No. required.','error'); return; }
+  S.data.workInProgress.push({id:uid(),apptNo,qty:+document.getElementById('w-qty').value||0,brand:document.getElementById('w-brand').value.trim(),bench:document.getElementById('w-bench').value.trim(),enteredBy:S.user.name,enteredAt:new Date().toISOString()});
+  saveShift(); renderWip(); updateBadges(); closeForm('wipForm'); toast('WIP added!','success');
+}
+function delWip(id){ S.data.workInProgress=S.data.workInProgress.filter(w=>w.id!==id); saveShift(); renderWip(); updateBadges(); }
+
+function savePriority(){
+  const apptNo=document.getElementById('p-apptno').value.trim(); if(!apptNo){ toast('Appointment No. required.','error'); return; }
+  S.data.priorityAppointments.push({id:uid(),apptNo,qty:+document.getElementById('p-qty').value||0,brand:document.getElementById('p-brand').value.trim(),enteredBy:S.user.name,enteredAt:new Date().toISOString()});
+  saveShift(); renderPriority(); updateBadges(); closeForm('priForm'); toast('Priority added!','success');
+}
+function delPriority(id){ S.data.priorityAppointments=S.data.priorityAppointments.filter(p=>p.id!==id); saveShift(); renderPriority(); updateBadges(); }
+
+// ── KPI ──────────────────────────────────────────────────────
+function kpiSet(pre,staff,hrs,target,actual,kpi){
+  document.getElementById(pre+'-staff').textContent=staff;
+  document.getElementById(pre+'-hrs').textContent=hrs.toFixed(1);
+  document.getElementById(pre+'-target').textContent=Math.round(target).toLocaleString();
+  document.getElementById(pre+'-actual').textContent=(+actual).toLocaleString();
+  document.getElementById(pre+'-pct').textContent=kpi.toFixed(1)+'%';
+  const b=document.getElementById(pre+'-bar'), pct=Math.min(100,kpi);
+  b.style.width=pct+'%'; b.style.background=kpiColor(pct);
+}
+function calcFashion(){ const st=+document.getElementById('f-staff').value||0,hrs=st*7.5; document.getElementById('f-hrs').value=hrs; const tgt=34*hrs,act=(S.data.appointments||[]).filter(a=>a.type==='Appointment No.').reduce((s,a)=>s+(+a.qty||0),0); kpiSet('fk',st,hrs,tgt,act,tgt>0?(act/tgt)*100:0); if(S.data) S.data.fashionStaff=st; }
+function calcPerf(){ const st=+document.getElementById('p-staff').value||0,hrs=st*7.5; document.getElementById('p-hrs').value=hrs; const tgt=321*hrs,act=(S.data.appointments||[]).filter(a=>a.type==='Perf Appt No.').reduce((s,a)=>s+(+a.qty||0),0); kpiSet('pk',st,hrs,tgt,act,tgt>0?(act/tgt)*100:0); if(S.data) S.data.perfStaff=st; }
+function calcPutaway(){ const st=+document.getElementById('pw-staff-in').value||0,hrs=st*7.5; document.getElementById('pw-hrs-in').value=hrs; const tgt=(1000/7.5)*hrs,act=+document.getElementById('pw-actual-in').value||0; kpiSet('pw',st,hrs,tgt,act,tgt>0?(act/tgt)*100:0); if(S.data){ S.data.putawayStaff=st; S.data.putawayActual=act; } }
+function calcEmail(){ const s=+document.getElementById('sod-inbox').value||0,e=+document.getElementById('eod-inbox').value||0,d=e-s; document.getElementById('em-sod').textContent=s; document.getElementById('em-eod').textContent=e; document.getElementById('em-delta').textContent=(d>0?'+':'')+d; document.getElementById('em-desc').textContent=d>0?'Inbox increased':d<0?'Inbox reduced':'No change'; if(S.data){ S.data.sodInbox=s; S.data.eodInbox=e; } }
+
+// ── NAV ──────────────────────────────────────────────────────
+function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); }
+function toggleForm(id){ const f=document.getElementById(id); f.classList.toggle('open'); if(f.classList.contains('open')) f.querySelectorAll('input,select').forEach(el=>{ if(el.tagName==='INPUT'&&el.type!=='checkbox') el.value=''; else if(el.tagName==='SELECT') el.selectedIndex=0; }); }
+function closeForm(id){ document.getElementById(id).classList.remove('open'); }
+
+// ── MODALS ───────────────────────────────────────────────────
+function openOverlay(id){ document.getElementById(id).classList.add('open'); }
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click',e=>{ if(e.target.classList.contains('overlay')) e.target.classList.remove('open'); });
+
+function confirm2(title,msg,sub,type,okLbl,okCls,cb){
+  S.confirmCb=cb;
+  document.getElementById('conf-title').textContent=title;
+  document.getElementById('conf-msg').textContent=msg;
+  document.getElementById('conf-sub').textContent=sub||'';
+  const wi=document.getElementById('conf-icon');
+  wi.className='confirm-icon '+(type==='danger'?'ci-danger':'ci-warn');
+  wi.innerHTML=type==='danger'?'<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="22" height="22"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>':'<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="22" height="22"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+  document.getElementById('conf-ok').textContent=okLbl; document.getElementById('conf-ok').className='btn '+okCls;
+  openOverlay('confirmOverlay');
+}
+function execConfirm(){ if(S.confirmCb) S.confirmCb(); closeOverlay('confirmOverlay'); S.confirmCb=null; }
+
+// ── ADMIN ────────────────────────────────────────────────────
+function openAdminLoginModal(){ openOverlay('adminLoginOverlay'); }
+async function doAdminLogin(){
+  const email=document.getElementById('al-email').value.trim().toLowerCase();
+  const pwd=document.getElementById('al-pwd').value.trim();
+  document.getElementById('al-err').classList.remove('show');
+  const res=await api('POST','/api/login',{email,pwd,shift:'AM',date:S.date||new Date().toISOString().split('T')[0]});
+  if(!res||!res.ok){ document.getElementById('al-err').classList.add('show'); return; }
+  if(!['admin','superadmin'].includes(res.user.role)){ document.getElementById('al-err').textContent='Insufficient permissions (Admin or Super Admin required).'; document.getElementById('al-err').classList.add('show'); return; }
+  S.user=res.user; S.date=S.date||new Date().toISOString().split('T')[0]; S.shift='AM';
+  closeOverlay('adminLoginOverlay');
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+  setupUI(); loadShift(); openAdminPanel();
+}
+
+function openAdminPanel(){ document.getElementById('adminPanel').classList.add('open'); loadAdminDashboard(); loadUsers(); }
+function closeAdminPanel(){ document.getElementById('adminPanel').classList.remove('open'); }
+
+function apTab(id,btn){ document.querySelectorAll('.ap-section').forEach(s=>s.classList.remove('active')); document.querySelectorAll('.ap-tab').forEach(b=>b.classList.remove('active')); document.getElementById('ap-'+id).classList.add('active'); btn.classList.add('active'); if(id==='log') loadLog(); if(id==='records') searchRecords('all'); if(id==='settings') loadSettings(); }
+
+async function loadAdminDashboard(){
+  const [users,shifts,log]=await Promise.all([api('GET','/api/users'),api('GET','/api/shifts'),api('GET','/api/log')]);
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('ap-users').textContent=(users||[]).filter(u=>u.active).length;
+  document.getElementById('ap-shifts').textContent=(shifts||[]).length;
+  document.getElementById('ap-today').textContent=(log||[]).filter(l=>l.date===today).length;
+  document.getElementById('ap-total').textContent=(log||[]).length;
+  document.getElementById('ap-recent-logins').innerHTML=(log||[]).slice(0,8).map(l=>`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+    <div style="width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${initials(l.name)}</div>
+    <div><div style="font-weight:600">${l.name}</div><div style="font-size:10px;color:var(--text3)">${fmtTs(l.loginAt)}</div></div>
+    <span class="badge ${l.shift==='AM'?'b-am':'b-pm'}" style="margin-left:auto">${l.shift}</span></div>`).join('')||'<div class="empty">No logins yet.</div>';
+  document.getElementById('ap-user-list').innerHTML=(users||[]).map(u=>`<div style="display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+    <div style="width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${initials(u.name)}</div>
+    <div><div style="font-weight:600">${u.name}</div><div style="font-size:10px;color:var(--text3)">${u.email}</div></div>
+    <span class="badge ${u.role==='superadmin'?'b-super':u.role==='admin'?'b-admin':'b-user'}" style="margin-left:auto">${u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User'}</span></div>`).join('')||'<div class="empty">No users.</div>';
+}
+
+async function loadUsers(){
+  const users=await api('GET','/api/users')||[];
+  const log=await api('GET','/api/log')||[];
+  const tb=document.getElementById('users-tbody');
+  if(!users.length){ tb.innerHTML='<tr><td colspan="6" class="section-empty">No users.</td></tr>'; return; }
+  tb.innerHTML=users.map(u=>{
+    const last=log.find(l=>l.userId===u.id);
+    const rb=u.role==='superadmin'?'b-super':u.role==='admin'?'b-admin':'b-user';
+    const rl=u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User';
+    return `<tr><td><div style="font-weight:600">${u.name}</div><div style="font-size:10px;color:var(--text3)">${u.notes||''}</div></td>
+      <td class="td-mono" style="font-size:11px">${u.email}</td>
+      <td><span class="badge ${rb}">${rl}</span></td>
+      <td><span class="badge ${u.active?'b-active':'b-inactive'}">${u.active?'Active':'Inactive'}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${last?fmtTs(last.loginAt):'Never'}</td>
+      <td><div class="acts">
+        ${u.role!=='superadmin'?`
+          <button class="act act-edit" onclick="editUser('${u.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+          <button class="act act-tog" onclick="toggleUser('${u.id}','${!u.active}')" title="${u.active?'Deactivate':'Activate'}"><svg fill="none" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></button>
+          <button class="act act-del" onclick="deleteUser('${u.id}','${u.name}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+        `:'<span style="font-size:10px;color:var(--text3)">Protected</span>'}
+      </div></td></tr>`;
+  }).join('');
+}
+
+function openAddUser(){ S.editUserId=null; document.getElementById('add-user-title').textContent='Register User'; ['u-name','u-email','u-pwd','u-notes'].forEach(id=>document.getElementById(id).value=''); document.getElementById('u-role').value='user'; document.getElementById('u-err').classList.remove('show'); openOverlay('addUserOverlay'); }
+
+async function editUser(id){
+  const users=await api('GET','/api/users')||[];
+  const u=users.find(x=>x.id===id); if(!u) return;
+  S.editUserId=id;
+  document.getElementById('add-user-title').textContent='Edit User: '+u.name;
+  document.getElementById('u-name').value=u.name;
+  document.getElementById('u-email').value=u.email;
+  document.getElementById('u-role').value=u.role;
+  document.getElementById('u-pwd').value='';
+  document.getElementById('u-notes').value=u.notes||'';
+  document.getElementById('u-err').classList.remove('show');
+  openOverlay('addUserOverlay');
+}
+
+async function saveUser(){
+  const name=document.getElementById('u-name').value.trim();
+  const email=
+').value=u.email; document.getElementById('u-role').value=u.role; document.getElementById('u-pwd').value=''; document.getElementById('u-notes').value=u.notes||''; document.getElementById('u-err').classList.remove('show'); openOv('addUserOv');
+}
+
+async function saveUser(){
+  const name=document.getElementById('u-name').value.trim(), email=document.getElementById('u-email').value.trim().toLowerCase(), role=document.getElementById('u-role').value, pwd=document.getElementById('u-pwd').value.trim(), notes=document.getElementById('u-notes').value.trim();
+  document.getElementById('u-err').classList.remove('show');
+  if(!name||!email){showFerr('u-err','Name and email required.'); return;}
+  if(S.editUserId){
+    const upd={name,email,role,notes}; if(pwd)upd.pwd=pwd;
+    const {error}=await SB.from('isr_users').update(upd).eq('id',S.editUserId);
+    if(error){showFerr('u-err',error.message);return;}
+    await loadUsers2(); await loadDash(); closeOv('addUserOv'); toast('User updated!','success');
+  } else {
+    if(!pwd){showFerr('u-err','Password required for new users.');return;}
+    const {data:ex}=await SB.from('isr_users').select('id').eq('email',email).limit(1);
+    if(ex&&ex.length){showFerr('u-err','Email already registered.');return;}
+    const {error}=await SB.from('isr_users').insert({id:'u-'+Date.now().toString(36),name,email,pwd,role,active:true,notes,created_by:S.user.name});
+    if(error){showFerr('u-err',error.message);return;}
+    await loadUsers2(); await loadDash(); closeOv('addUserOv'); toast('User registered!','success');
+  }
+}
+
+async function togUser(id,active){ await SB.from('isr_users').update({active}).eq('id',id); await loadUsers2(); await loadDash(); toast(`User ${active?'activated':'deactivated'}.`,'info'); }
+function delUser(id,name){ conf2(`Delete ${name}?`,'Cannot be undone.','','danger','Delete','br',async()=>{ await SB.from('isr_users').delete().eq('id',id); await loadUsers2(); await loadDash(); }); }
+
+async function loadLog(){
+  let q=SB.from('isr_log').select('*').order('login_at',{ascending:false}).limit(500);
+  const df=document.getElementById('log-date').value, sf=document.getElementById('log-shift').value;
+  if(df) q=q.gte('login_at',df+'T00:00:00').lte('login_at',df+'T23:59:59');
+  if(sf) q=q.eq('shift',sf);
+  const {data:log}=await q;
+  const tb=document.getElementById('log-tb');
+  if(!(log||[]).length){tb.innerHTML='<tr><td colspan="7" class="se">No log entries.</td></tr>';return;}
+  tb.innerHTML=(log||[]).map((l,i)=>`<tr>
+    <td class="tm" style="color:var(--text3)">${(log||[]).length-i}</td>
+    <td><div style="font-weight:600">${l.name||'—'}</div></td>
+    <td class="tm" style="font-size:11px">${l.email||'—'}</td>
+    <td><span class="badge ${l.role==='superadmin'?'bsuper':l.role==='admin'?'badm':'busr'}">${l.role==='superadmin'?'Super Admin':l.role==='admin'?'Admin':'User'}</span></td>
+    <td><span class="badge ${l.shift==='AM'?'bam':'bpm'}">${l.shift||'—'}</span></td>
+    <td class="tm">${l.date?new Date(l.date+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—'}</td>
+    <td class="tm">${l.login_at?new Date(l.login_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):''}</td>
+  </tr>`).join('');
+}
+
+async function searchRec(mode){
+  let q=SB.from('isr_shifts').select('shift_key,date,shift,officer,data_json,saved_at').order('date',{ascending:false});
+  if(mode!=='all'){
+    const date=document.getElementById('rec-date').value, shift=document.getElementById('rec-shift').value;
+    if(date) q=q.eq('date',date);
+    if(shift) q=q.eq('shift',shift);
+  }
+  const {data:rows}=await q.limit(100);
+  const el=document.getElementById('rec-res');
+  if(!(rows||[]).length){el.innerHTML='<div class="se">No records found.</div>';return;}
+  el.innerHTML=(rows||[]).map(r=>{
+    let apptCount=0; try{apptCount=(JSON.parse(r.data_json).appointments||[]).length;}catch{}
+    return `<div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div><span style="font-weight:700;color:var(--navy)">${new Date(r.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}</span>
+      <span class="badge ${r.shift==='AM'?'bam':'bpm'}" style="margin-left:8px">${r.shift}</span>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Officer: <strong>${r.officer||'—'}</strong> · ${apptCount} appts · Saved: ${fmtTs(r.saved_at)}</div></div>
+      <button class="btn bt bs" onclick="viewRec('${r.date}','${r.shift}')">View</button>
+    </div>`;
+  }).join('');
+}
+
+async function viewRec(date,shift){
+  const {data:row}=await SB.from('isr_shifts').select('*').eq('shift_key',`${date}_${shift}`).single();
+  if(!row){toast('Record not found.','error');return;}
+  let d; try{d=JSON.parse(row.data_json);}catch{toast('Could not parse record.','error');return;}
+  document.getElementById('hv-title').textContent=`${new Date(date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} — ${shift} Shift`;
+  let h=`<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px"><strong>Officer:</strong> ${d.officer||'—'} · <strong>Saved:</strong> ${fmtTs(d.savedAt)} by ${d.savedBy||'—'}</div>`;
+  if(d.shiftOverview) h+=`<strong>Overview:</strong><div style="background:#f8f8f8;border-radius:6px;padding:8px;margin:4px 0 12px;font-size:11px">${d.shiftOverview}</div>`;
+  const a=d.appointments||[];
+  if(a.length){
+    h+=`<strong>Appointments (${a.length}):</strong><table style="width:100%;border-collapse:collapse;font-size:11px;margin:6px 0 12px"><thead><tr style="background:var(--navy)">${['Type','Appt No.','Qty','Dept','Merret','App','Putaway','Verif.','By'].map(c=>`<th style="padding:4px 8px;text-align:left;color:#8da8c0;font-size:9px">${c}</th>`).join('')}</tr></thead><tbody>`;
+    a.forEach((r,i)=>{h+=`<tr style="${i%2?'background:#f9f9f9':''}${r.isPriority?';color:#dc2626;font-weight:700':''}"><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.type}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-family:monospace">${r.apptNo}${r.isPriority?' ★':''}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.qty||'N/A'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.dept||'—'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.merretUpdated}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.appUpdated}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.putawayComplete}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.putawayVerification}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:10px">${r.enteredBy||'—'}</td></tr>`;});
+    h+='</tbody></table>';
+  }
+  const pri=d.priorityAppointments||[];
+  if(pri.length) h+=`<strong style="color:#dc2626">★ Priority:</strong><div style="margin:4px 0 12px">${pri.map(p=>`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:6px;margin-right:5px;font-weight:700;font-size:11px">${p.apptNo} Qty:${p.qty} ${p.brand||''}</span>`).join('')}</div>`;
+  if(d.issuesNotes) h+=`<strong>Issues & Notes:</strong><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:9px;margin-top:4px;font-size:11px;white-space:pre-wrap">${d.issuesNotes}</div>`;
+  document.getElementById('hv-body').innerHTML=h;
+  openOv('hvOv');
+}
+
+// ═══════════════ HISTORY ═══════════════
+function openHistory(){ loadHist('all'); openOv('histOv'); }
+async function loadHist(mode){
+  let q=SB.from('isr_shifts').select('shift_key,date,shift,officer,data_json,saved_at').order('date',{ascending:false});
+  if(mode!=='all'){
+    const date=document.getElementById('hist-date').value, shift=document.getElementById('hist-shift').value;
+    if(date) q=q.eq('date',date);
+    if(shift) q=q.eq('shift',shift);
+  }
+  const {data:rows}=await q.limit(100);
+  const el=document.getElementById('hist-list');
+  if(!(rows||[]).length){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No records found.</div>';return;}
+  el.innerHTML=(rows||[]).map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:7px;cursor:pointer;transition:.15s" onmouseenter="this.style.borderColor='var(--teal)'" onmouseleave="this.style.borderColor='var(--border)'" onclick="viewRec('${r.date}','${r.shift}');closeOv('histOv')">
+    <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:13px;color:var(--navy)">${new Date(r.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}</span>
+    <span class="badge ${r.shift==='AM'?'bam':'bpm'}">${r.shift}</span>
+    <span style="font-size:11px;color:var(--text2);margin-left:auto">Officer: ${r.officer||'—'}</span>
+  </div>`).join('');
+}
+
+// ═══════════════ REPORTS ═══════════════
+function selRep(el,t){ S.rType=t; document.querySelectorAll('.ropt').forEach(o=>{o.style.borderColor='var(--border)';o.style.background='';}); el.style.borderColor='var(--teal)'; el.style.background='var(--teal-l)'; }
+function openReportModal(){ collectData(); S.rType='AM'; openOv('repOv'); document.getElementById('rep-prev').textContent='Select report type and click Preview...'; }
+
+async function getRepData(date,shift){
+  if(shift===S.shift&&date===S.date&&S.data) return S.data;
+  const {data:row}=await SB.from('isr_shifts').select('data_json').eq('shift_key',`${date}_${shift}`).single();
+  if(!row) return null;
+  try{ return JSON.parse(row.data_json); }catch{ return null; }
+}
+
+async function buildRepText(type){
+  const cfg=getCfg()||{};
+  const fmtDate=d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  let t=`${cfg.company||'Inbound Shift Report'}
+INBOUND SHIFT REPORT
+${'='.repeat(60)}
+Date: ${fmtDate(S.date)}
+Report: ${type==='FULL'?'Full Day (AM+PM)':type+' Shift'}
+Generated: ${new Date().toLocaleString('en-GB')} by ${S.user.name}
+${'='.repeat(60)}
+
+`;
+  async function sec(shift){
+    const d=await getRepData(S.date,shift);
+    if(!d) return `  [No data for ${shift} shift]
+`;
+    let s=`SHIFT: ${shift} | Officer: ${d.officer||'—'}
+`;
+    if(d.shiftOverview) s+=`Overview: ${d.shiftOverview}
+`;
+    s+='
+';
+    const a=d.appointments||[];
+    if(a.length){ s+=`APPOINTMENTS (${a.length}):
+  ${'Type'.padEnd(16)} ${'Appt No.'.padEnd(10)} ${'Qty'.padEnd(6)} ${'Dept'.padEnd(6)} Merret App Putaway Verif
+  ${'-'.repeat(65)}
+`; a.forEach(r=>s+=`  ${(r.isPriority?'★ ':''+(r.othersSpec||r.type)).padEnd(16)} ${r.apptNo.padEnd(10)} ${String(r.qty||'N/A').padEnd(6)} ${(r.dept||'—').padEnd(6)} ${r.merretUpdated.padEnd(7)} ${r.appUpdated.padEnd(4)} ${r.putawayComplete.padEnd(8)} ${r.putawayVerification}${r.isPriority?' [PRIORITY]':''}
+`); s+='
+'; }
+    const pri=d.priorityAppointments||[];
+    if(pri.length){ s+=`★ PRIORITY:
+`; pri.forEach(p=>s+=`  ★ ${p.apptNo} | Qty:${p.qty} | Brand:${p.brand||'—'}
+`); s+='
+'; }
+    const fSt=d.fashionStaff||0,fH=fSt*7.5,fT=34*fH,fA=(a||[]).filter(x=>x.type==='Appointment No.').reduce((s,x)=>s+(+x.qty||0),0);
+    s+=`FASHION KPI: Staff:${fSt} Hrs:${fH} Target:${fT} Actual:${fA} KPI:${fT>0?((fA/fT)*100).toFixed(1):0}%
+`;
+    const pSt=d.perfStaff||0,pH=pSt*7.5,pT=321*pH,pA=(a||[]).filter(x=>x.type==='Perf Appt No.').reduce((s,x)=>s+(+x.qty||0),0);
+    s+=`PERFUMERY KPI: Staff:${pSt} Hrs:${pH} Target:${pT} Actual:${pA} KPI:${pT>0?((pA/pT)*100).toFixed(1):0}%
+`;
+    const pwSt=d.putawayStaff||0,pwH=pwSt*7.5,pwT=Math.round((1000/7.5)*pwH),pwA=d.putawayActual||0;
+    s+=`PUTAWAY KPI: Staff:${pwSt} Hrs:${pwH} Target:${pwT} Actual:${pwA} KPI:${pwT>0?((pwA/pwT)*100).toFixed(1):0}%
+`;
+    s+=`EMAIL: SOD:${d.sodInbox||0} EOD:${d.eodInbox||0}
+`;
+    if(d.issuesNotes) s+=`
+ISSUES & NOTES:
+${d.issuesNotes}
+`;
+    return s;
+  }
+  if(type==='FULL'){ t+=await sec('AM')+'
+'+'-'.repeat(60)+'
+
+'+await sec('PM'); }
+  else { t+=await sec(type); }
+  t+=`
+${'='.repeat(60)}
+End of Report
+`;
+  return t;
+}
+
+async function prevReport(){ showLoading('Building preview...'); const t=await buildRepText(S.rType); hideLoading(); document.getElementById('rep-prev').textContent=t; }
+async function printReport(){ showLoading('Preparing report...'); const t=await buildRepText(S.rType); const cfg=getCfg()||{}; hideLoading(); document.getElementById('pd').innerHTML=`<div class="pdh"><div class="pdt">${cfg.company||'Inbound Shift Report'}</div><div class="pdm"><span>${new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span><span>${S.rType==='FULL'?'Full Day':S.rType+' Shift'}</span><span>Officer: ${S.user.name}</span></div></div><pre style="font-size:10px;white-space:pre-wrap;font-family:monospace">${t}</pre><div class="pdf"><span>Generated: ${new Date().toLocaleString('en-GB')} by ${S.user.name}</span><span>Inbound Shift Report v2.0</span></div>`; window.print(); }
+async function emailReport(){ const to=document.getElementById('rep-email').value.trim(); const t=await buildRepText(S.rType); const cfg=getCfg()||{}; window.location.href=`mailto:${to}?subject=${encodeURIComponent(cfg.company+' — Shift Report '+S.date)}&body=${encodeURIComponent(t.slice(0,1800))}`; }
+
+// ═══════════════ TOAST ═══════════════
+function toast(msg,type='info'){
+  const el=document.createElement('div'); el.className=`toast t${type.charAt(0)}`; el.innerHTML=`<span>${{success:'✓',error:'✕',info:'ℹ',warn:'⚠'}[type]||'ℹ'}</span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>{el.style.animation='none';el.style.opacity='0';el.style.transform='translateX(20px)';setTimeout(()=>el.remove(),300);},3200);
+}
+
+document.addEventListener('input',e=>{ if(!S.data)return; if(e.target.id==='shiftOverview')S.data.shiftOverview=e.target.value; if(e.target.id==='issuesNotes')S.data.issuesNotes=e.target.value; });
+</script>
+</body>
+</html>
