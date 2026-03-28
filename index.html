@@ -618,7 +618,7 @@ table.tbl td{padding:9px 10px;vertical-align:middle}
 </div>
 <div class="overlay" id="addUserOverlay">
   <div class="modal modal-md">
-    <div class="mh"><h3 id="add-user-title">Register User</h3><button class="mclose" onclick="closeOverlay('addUserOverlay')">✕</button></div>
+    <div class="mh"><h3 id="add-user-title">Register User</h3><button class="mclose" onclick="closeOv('addUserOv')">✕</button></div>
     <div class="mb">
       <div class="fr fr2">
         <div class="ff"><label>Full Name <span class="req">*</span></label><input type="text" id="u-name" placeholder="Full name"></div>
@@ -630,7 +630,7 @@ table.tbl td{padding:9px 10px;vertical-align:middle}
       </div>
       <div class="fr"><div class="ff"><label>Notes / Position</label><input type="text" id="u-notes" placeholder="e.g. AM Supervisor"></div></div>
     </div>
-    <div class="mf"><button class="btn btn-outline" onclick="closeOverlay('addUserOverlay')">Cancel</button><button class="btn btn-navy" onclick="saveUser()">Register User</button></div>
+    <div class="mf"><button class="btn btn-outline" onclick="closeOv('addUserOv')">Cancel</button><button class="btn btn-navy" onclick="saveUser()">Register User</button></div>
   </div>
 </div>
 <div class="overlay" id="adminLoginOverlay">
@@ -715,14 +715,15 @@ async function doLogin(){
   document.getElementById('li-pwd-err').classList.remove('show');
   if(!email){ showFieldErr('li-email-err','Please enter your email.'); return; }
   if(!pwd)  { document.getElementById('li-pwd-err').classList.add('show'); return; }
-  const res = await api('POST','/api/login',{email,pwd,shift,date});
-  if(!res) return;
-  if(!res.ok){ 
-    if(res.error && res.error.toLowerCase().includes('password')) document.getElementById('li-pwd-err').classList.add('show');
-    else showFieldErr('li-email-err', res.error || 'Login failed.');
-    return; 
-  }
-  S.user=res.user; S.date=date; S.shift=shift;
+  showLoading('Signing in...');
+  const {data:users2}=await SB.from('isr_users').select('*').eq('email',email).limit(1);
+  hideLoading();
+  const user=users2?.[0];
+  if(!user){showFieldErr('li-email-err','Email not found. Ask your admin to register you.');return;}
+  if(!user.active){showFieldErr('li-email-err','Account deactivated. Contact your admin.');return;}
+  if(user.pwd!==pwd){document.getElementById('li-pwd-err').classList.add('show');return;}
+  await SB.from('isr_log').insert({user_id:user.id,name:user.name,email:user.email,role:user.role,shift,date,login_at:new Date().toISOString()});
+  S.user=user; S.date=date; S.shift=shift;
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
   setupUI(); loadShift();
@@ -743,7 +744,7 @@ function doLogout(){
 // ── Setup UI ─────────────────────────────────────────────────
 async function setupUI(){
   const u=S.user;
-  const cfg = await api('GET','/api/settings') || {};
+  const cfg = getCfg() || {};
   document.getElementById('tb-company').textContent = cfg.company||'Inbound Shift Report';
   document.getElementById('hdr-date').value = S.date;
   document.getElementById('hdr-name').textContent = u.name;
@@ -767,11 +768,14 @@ function updateTiles(){
 }
 
 // ── Shift data ───────────────────────────────────────────────
-function defaultData(){ return { date:S.date, shift:S.shift, officer:S.user.name, officerEmail:S.user.email, shiftOverview:'', appointments:[], workInProgress:[], priorityAppointments:[], fashionStaff:5, perfStaff:0, putawayStaff:0, putawayActual:0, issuesNotes:'', sodInbox:'', eodInbox:'' }; }
+function defData(){ return { date:S.date, shift:S.shift, officer:S.user.name, officerEmail:S.user.email, shiftOverview:'', appointments:[], workInProgress:[], priorityAppointments:[], fashionStaff:5, perfStaff:0, putawayStaff:0, putawayActual:0, issuesNotes:'', sodInbox:'', eodInbox:'' }; }
 
 async function loadShift(){
-  const d = await api('GET',`/api/shift?date=${S.date}&shift=${S.shift}`);
-  S.data = d || defaultData();
+  showLoading('Loading shift data...');
+  const {data:row}=await SB.from('isr_shifts').select('*').eq('shift_key',`${S.date}_${S.shift}`).single();
+  hideLoading();
+  if(row){ try{ S.data=JSON.parse(row.data_json); }catch{ S.data=defData(); } }
+  else { S.data=defData(); }
   renderAll();
 }
 
@@ -791,12 +795,13 @@ async function saveShift(){
   collectData();
   if(!S.data) return;
   S.data.savedBy=S.user.name; S.data.savedAt=new Date().toISOString();
-  const res = await api('POST','/api/shift', S.data);
-  if(res&&res.ok) toast('Shift saved!','success');
+  const {error:saveErr}=await SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user.name,officer_email:S.user.email,data_json:JSON.stringify(S.data),saved_at:S.data.savedAt,saved_by:S.user.name},{onConflict:'shift_key'});
+  if(saveErr) toast('Save failed: '+saveErr.message,'error');
+  else toast('Shift saved to cloud! ☁️','success');
 }
 
-function changeDate(){ collectData(); if(S.data) api('POST','/api/shift',S.data); S.date=document.getElementById('hdr-date').value; loadShift(); updateTiles(); }
-function changeShift(s){ collectData(); if(S.data) api('POST','/api/shift',S.data); S.shift=s; document.getElementById('pill-AM').classList.toggle('active',s==='AM'); document.getElementById('pill-PM').classList.toggle('active',s==='PM'); loadShift(); updateTiles(); }
+function changeDate(){ collectData(); if(S.data) SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user?.name||'',data_json:JSON.stringify(S.data),saved_at:new Date().toISOString(),saved_by:S.user?.name||''},{onConflict:'shift_key'}); S.date=document.getElementById('hdr-date').value; loadShift(); updateTiles(); }
+function changeShift(s){ collectData(); if(S.data) SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user?.name||'',data_json:JSON.stringify(S.data),saved_at:new Date().toISOString(),saved_by:S.user?.name||''},{onConflict:'shift_key'}); S.shift=s; document.getElementById('pill-AM').classList.toggle('active',s==='AM'); document.getElementById('pill-PM').classList.toggle('active',s==='PM'); loadShift(); updateTiles(); }
 
 // ── Render ───────────────────────────────────────────────────
 function renderAll(){
@@ -976,10 +981,12 @@ async function doAdminLogin(){
   const email=document.getElementById('al-email').value.trim().toLowerCase();
   const pwd=document.getElementById('al-pwd').value.trim();
   document.getElementById('al-err').classList.remove('show');
-  const res=await api('POST','/api/login',{email,pwd,shift:'AM',date:S.date||new Date().toISOString().split('T')[0]});
-  if(!res||!res.ok){ document.getElementById('al-err').classList.add('show'); return; }
-  if(!['admin','superadmin'].includes(res.user.role)){ document.getElementById('al-err').textContent='Insufficient permissions (Admin or Super Admin required).'; document.getElementById('al-err').classList.add('show'); return; }
-  S.user=res.user; S.date=S.date||new Date().toISOString().split('T')[0]; S.shift='AM';
+  showLoading('Verifying...');
+  const {data:au}=await SB.from('isr_users').select('*').eq('email',email).limit(1);
+  hideLoading();
+  const u2=au?.[0];
+  if(!u2||u2.pwd!==pwd||!['admin','superadmin'].includes(u2.role)){ document.getElementById('al-err').classList.add('show'); return; }
+  S.user=u2; S.date=S.date||new Date().toISOString().split('T')[0]; S.shift='AM';
   closeOverlay('adminLoginOverlay');
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
@@ -1008,52 +1015,27 @@ async function loadAdminDashboard(){
     <span class="badge ${u.role==='superadmin'?'b-super':u.role==='admin'?'b-admin':'b-user'}" style="margin-left:auto">${u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User'}</span></div>`).join('')||'<div class="empty">No users.</div>';
 }
 
-async function loadUsers(){
-  const users=await api('GET','/api/users')||[];
-  const log=await api('GET','/api/log')||[];
-  const tb=document.getElementById('users-tbody');
-  if(!users.length){ tb.innerHTML='<tr><td colspan="6" class="section-empty">No users.</td></tr>'; return; }
-  tb.innerHTML=users.map(u=>{
-    const last=log.find(l=>l.userId===u.id);
-    const rb=u.role==='superadmin'?'b-super':u.role==='admin'?'b-admin':'b-user';
-    const rl=u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User';
-    return `<tr><td><div style="font-weight:600">${u.name}</div><div style="font-size:10px;color:var(--text3)">${u.notes||''}</div></td>
-      <td class="td-mono" style="font-size:11px">${u.email}</td>
-      <td><span class="badge ${rb}">${rl}</span></td>
-      <td><span class="badge ${u.active?'b-active':'b-inactive'}">${u.active?'Active':'Inactive'}</span></td>
-      <td style="font-size:11px;color:var(--text2)">${last?fmtTs(last.loginAt):'Never'}</td>
-      <td><div class="acts">
-        ${u.role!=='superadmin'?`
-          <button class="act act-edit" onclick="editUser('${u.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-          <button class="act act-tog" onclick="toggleUser('${u.id}','${!u.active}')" title="${u.active?'Deactivate':'Activate'}"><svg fill="none" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></button>
-          <button class="act act-del" onclick="deleteUser('${u.id}','${u.name}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
-        `:'<span style="font-size:10px;color:var(--text3)">Protected</span>'}
-      </div></td></tr>`;
-  }).join('');
-}
+async function loadUsers(){ await loadUsers2(); }
 
-function openAddUser(){ S.editUserId=null; document.getElementById('add-user-title').textContent='Register User'; ['u-name','u-email','u-pwd','u-notes'].forEach(id=>document.getElementById(id).value=''); document.getElementById('u-role').value='user'; document.getElementById('u-err').classList.remove('show'); openOverlay('addUserOverlay'); }
+function openAddUser(){ S.editUserId=null; document.getElementById('au-title').textContent='Register User'; ['u-name','u-email','u-pwd','u-notes'].forEach(id=>document.getElementById(id).value=''); document.getElementById('u-role').value='user'; document.getElementById('u-err').classList.remove('show'); openOv('addUserOv'); }
 
 async function editUser(id){
-  const users=await api('GET','/api/users')||[];
-  const u=users.find(x=>x.id===id); if(!u) return;
+  const {data:users}=await SB.from('isr_users').select('*').eq('id',id).limit(1);
+  const u=users?.[0]; if(!u) return;
   S.editUserId=id;
-  document.getElementById('add-user-title').textContent='Edit User: '+u.name;
+  document.getElementById('au-title').textContent='Edit: '+u.name;
   document.getElementById('u-name').value=u.name;
   document.getElementById('u-email').value=u.email;
   document.getElementById('u-role').value=u.role;
   document.getElementById('u-pwd').value='';
   document.getElementById('u-notes').value=u.notes||'';
   document.getElementById('u-err').classList.remove('show');
-  openOverlay('addUserOverlay');
+  openOv('addUserOv');
 }
 
 async function saveUser(){
   const name=document.getElementById('u-name').value.trim();
   const email=
-').value=u.email; document.getElementById('u-role').value=u.role; document.getElementById('u-pwd').value=''; document.getElementById('u-notes').value=u.notes||''; document.getElementById('u-err').classList.remove('show'); openOv('addUserOv');
-}
-
 async function saveUser(){
   const name=document.getElementById('u-name').value.trim(), email=document.getElementById('u-email').value.trim().toLowerCase(), role=document.getElementById('u-role').value, pwd=document.getElementById('u-pwd').value.trim(), notes=document.getElementById('u-notes').value.trim();
   document.getElementById('u-err').classList.remove('show');
