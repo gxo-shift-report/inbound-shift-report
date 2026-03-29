@@ -260,11 +260,7 @@ table.tbl td{padding:9px 10px;vertical-align:middle}
       <div class="ll-icon"><svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM2 13h20v2H2z"/></svg></div>
       <h2>Inbound Shift Report</h2>
       <p>Daily shift management, appointments, KPIs and handover logging for warehouse inbound operations.</p>
-      <div class="ll-creds">
-        <div class="lc-title">Super Admin Credentials</div>
-        <div class="lc-row"><span>Email: </span>moses@ihsr.com</div>
-        <div class="lc-row"><span>Pass: </span>Admin@123</div>
-      </div>
+
       <div class="ll-footer">Inbound Shift Report v2.0</div>
     </div>
     <div class="login-right">
@@ -292,7 +288,7 @@ table.tbl td{padding:9px 10px;vertical-align:middle}
         <input type="date" id="li-date" class="fi">
       </div>
       <button class="login-btn" onclick="doLogin()">Sign In →</button>
-      <div class="admin-link"><a onclick="openAdminLoginModal()">⚙️ Admin Panel</a></div>
+      <div class="admin-link"><a onclick="openAdminLoginModal()">⚙️ Admin Panel</a> · <a onclick="reconfigure()" style="color:#94a3b8">Reset Connection</a></div>
     </div>
   </div>
 </div>
@@ -685,90 +681,153 @@ table.tbl td{padding:9px 10px;vertical-align:middle}
 <div id="printDoc"></div>
 
 <script>
-const API = '';  // same origin — server.js serves this file
-let S = { user:null, date:'', shift:'AM', data:null, reportType:'AM', editApptId:null, confirmCb:null, editUserId:null };
+// ═══════════════════════════════════════════════════════
+// SUPABASE CONFIG
+// ═══════════════════════════════════════════════════════
+let SB = null;
+let S  = { user:null, date:'', shift:'AM', data:null, rType:'AM', editApptId:null, editUserId:null, confCb:null };
 
-// ── API helpers ──────────────────────────────────────────────
-async function api(method, path, body){
-  try{
-    const opts = { method, headers:{'Content-Type':'application/json'} };
-    if(body) opts.body = JSON.stringify(body);
-    const r = await fetch(API+path, opts);
-    return await r.json();
-  } catch(e){ toast('Server error: '+e.message,'error'); return null; }
-}
+function getCfg(){ try{ return JSON.parse(localStorage.getItem('isr_cfg')||'null'); }catch{ return null; } }
+function saveCfg(c){ localStorage.setItem('isr_cfg', JSON.stringify(c)); }
 
-// ── Init ─────────────────────────────────────────────────────
-window.onload = function(){
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+window.onload = async function(){
   document.getElementById('li-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ll-url-display').textContent = window.location.href;
+  const cfg = getCfg();
+  if(!cfg || !cfg.url || !cfg.key){
+    document.getElementById('configScreen').classList.remove('hidden');
+    return;
+  }
+  await initSupabase(cfg);
 };
 
-// ── Login ────────────────────────────────────────────────────
+async function initSupabase(cfg){
+  showLoading('Connecting to database...');
+  try{
+    SB = supabase.createClient(cfg.url, cfg.key);
+    const { error } = await SB.from('isr_users').select('id').limit(1);
+    if(error && error.code !== 'PGRST116') throw new Error(error.message);
+    await seedAdmin();
+    hideLoading();
+    document.getElementById('configScreen').classList.add('hidden');
+    document.getElementById('loginScreen').classList.add('show');
+  } catch(e){
+    hideLoading();
+    document.getElementById('configScreen').classList.remove('hidden');
+    document.getElementById('cfg-err').textContent = 'Connection failed: ' + e.message + '. Please check your Supabase URL and key.';
+    document.getElementById('cfg-err').classList.add('show');
+  }
+}
+
+async function saveConfig(){
+  const url = document.getElementById('cfg-url').value.trim().replace(/\/+$/,'');
+  const key = document.getElementById('cfg-key').value.trim();
+  const company = document.getElementById('cfg-company').value.trim() || 'GXO Logistics';
+  const errEl = document.getElementById('cfg-err');
+  errEl.classList.remove('show');
+  if(!url || !url.startsWith('https://')){ errEl.textContent='Please enter a valid Supabase URL (starts with https://)'; errEl.classList.add('show'); return; }
+  if(!key || !key.startsWith('eyJ')){ errEl.textContent='Please enter your Supabase anon key (starts with eyJ...)'; errEl.classList.add('show'); return; }
+  const cfg = { url, key, company };
+  saveCfg(cfg);
+  await initSupabase(cfg);
+}
+
+async function seedAdmin(){
+  const { data } = await SB.from('isr_users').select('id').limit(1);
+  if(data && data.length > 0) return;
+  await SB.from('isr_users').insert({ id:'sa-001', name:'Moses Olayiwola', email:'moses@ihsr.com', pwd:'Admin@123', role:'superadmin', active:true, notes:'Super Administrator', created_by:'System' });
+  const cfg = getCfg();
+  await SB.from('isr_settings').upsert({ id:1, company: cfg?.company || 'GXO Logistics' });
+}
+
+function showLoading(msg){ document.getElementById('ld-msg').textContent=msg||'Loading...'; document.getElementById('loadingScreen').classList.add('show'); }
+function hideLoading(){ document.getElementById('loadingScreen').classList.remove('show'); }
+
+function reconfigure(){
+  if(confirm('Reset database connection? You will need to enter your Supabase credentials again.')){
+    localStorage.removeItem('isr_cfg');
+    location.reload();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════
 function selShift(btn){ document.querySelectorAll('.shift-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
 
 async function doLogin(){
   const email = document.getElementById('li-email').value.trim().toLowerCase();
   const pwd   = document.getElementById('li-pwd').value.trim();
-  const shift = (document.querySelector('.shift-btn.active')||{}).dataset?.s || 'AM';
+  const shift = document.querySelector('.shift-btn.active')?.dataset?.s || 'AM';
   const date  = document.getElementById('li-date').value || new Date().toISOString().split('T')[0];
   document.getElementById('li-email-err').classList.remove('show');
   document.getElementById('li-pwd-err').classList.remove('show');
-  if(!email){ showFieldErr('li-email-err','Please enter your email.'); return; }
+  if(!email){ showFerr('li-email-err','Please enter your email.'); return; }
   if(!pwd)  { document.getElementById('li-pwd-err').classList.add('show'); return; }
   showLoading('Signing in...');
-  const {data:users2}=await SB.from('isr_users').select('*').eq('email',email).limit(1);
+  const {data:users2,error:loginErr}=await SB.from('isr_users').select('*').eq('email',email).limit(1);
   hideLoading();
+  if(loginErr){ showFerr('li-email-err','Connection error. Please refresh and try again.'); return; }
   const user=users2?.[0];
-  if(!user){showFieldErr('li-email-err','Email not found. Ask your admin to register you.');return;}
-  if(!user.active){showFieldErr('li-email-err','Account deactivated. Contact your admin.');return;}
+  if(!user){showFerr('li-email-err','Email not found. Ask your admin to register you.');return;}
+  if(!user.active){showFerr('li-email-err','Account deactivated. Contact your admin.');return;}
   if(user.pwd!==pwd){document.getElementById('li-pwd-err').classList.add('show');return;}
   await SB.from('isr_log').insert({user_id:user.id,name:user.name,email:user.email,role:user.role,shift,date,login_at:new Date().toISOString()});
   S.user=user; S.date=date; S.shift=shift;
-  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('show');
   document.getElementById('app').classList.add('visible');
-  setupUI(); loadShift();
+  await setupUI(); await loadShift();
 }
 
-function showFieldErr(id,msg){ const el=document.getElementById(id); el.textContent=msg; el.classList.add('show'); }
+function showFerr(id,msg){ const e=document.getElementById(id); e.textContent=msg; e.classList.add('show'); }
 
 function doLogout(){
-  confirm2('Sign Out?','Are you sure?','','warn','Sign Out','btn-red',()=>{
+  conf2('Sign Out?','Are you sure?','','warn','Sign Out','br',()=>{
     S.user=null; S.data=null;
     document.getElementById('app').classList.remove('visible');
-    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('loginScreen').classList.add('show');
     document.getElementById('li-email').value='';
     document.getElementById('li-pwd').value='';
   });
 }
 
-// ── Setup UI ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// SETUP UI
+// ═══════════════════════════════════════════════════════
 async function setupUI(){
   const u=S.user;
-  const cfg = getCfg() || {};
-  document.getElementById('tb-company').textContent = cfg.company||'Inbound Shift Report';
-  document.getElementById('hdr-date').value = S.date;
-  document.getElementById('hdr-name').textContent = u.name;
-  document.getElementById('hdr-role').textContent = u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'Staff';
-  document.getElementById('hdr-av').textContent = u.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-  document.getElementById('sb-name').textContent = u.name;
-  document.getElementById('sb-email').textContent = u.email;
+  const cfg=getCfg()||{};
+  const {data:settings}=await SB.from('isr_settings').select('*').eq('id',1).single();
+  const company=settings?.company||cfg.company||'Inbound Shift Report';
+  document.getElementById('tb-co').textContent=company;
+  document.getElementById('hdr-date').value=S.date;
+  document.getElementById('hdr-name').textContent=u.name;
+  document.getElementById('hdr-role').textContent=u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'Staff';
+  document.getElementById('hdr-av').textContent=u.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sb-name').textContent=u.name;
+  document.getElementById('sb-email').textContent=u.email;
   const rb=document.getElementById('sb-role');
   rb.textContent=u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User';
   rb.className='su-role '+(u.role==='superadmin'?'sr-super':u.role==='admin'?'sr-admin':'sr-user');
   document.getElementById('pill-AM').classList.toggle('active',S.shift==='AM');
   document.getElementById('pill-PM').classList.toggle('active',S.shift==='PM');
-  document.getElementById('adminBtn').style.display=(u.role==='admin'||u.role==='superadmin')?'':'none';
+  document.getElementById('adminBtn').style.display=(['admin','superadmin'].includes(u.role))?'':'none';
   updateTiles();
 }
 
 function updateTiles(){
-  document.getElementById('tile-shift').textContent=S.shift;
-  document.getElementById('tile-officer').textContent=S.user?S.user.name:'—';
-  document.getElementById('tile-date').textContent=S.date?new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):'—';
+  document.getElementById('t-shift').textContent=S.shift;
+  document.getElementById('t-officer').textContent=S.user?.name||'—';
+  document.getElementById('t-date').textContent=S.date?new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):'—';
 }
 
-// ── Shift data ───────────────────────────────────────────────
-function defData(){ return { date:S.date, shift:S.shift, officer:S.user.name, officerEmail:S.user.email, shiftOverview:'', appointments:[], workInProgress:[], priorityAppointments:[], fashionStaff:5, perfStaff:0, putawayStaff:0, putawayActual:0, issuesNotes:'', sodInbox:'', eodInbox:'' }; }
+// ═══════════════════════════════════════════════════════
+// SHIFT DATA
+// ═══════════════════════════════════════════════════════
+function defData(){ return {date:S.date,shift:S.shift,officer:S.user.name,officerEmail:S.user.email,shiftOverview:'',appointments:[],workInProgress:[],priorityAppointments:[],fashionStaff:5,perfStaff:0,putawayStaff:0,putawayActual:0,issuesNotes:'',sodInbox:'',eodInbox:''}; }
 
 async function loadShift(){
   showLoading('Loading shift data...');
@@ -781,105 +840,120 @@ async function loadShift(){
 
 function collectData(){
   if(!S.data) return;
-  S.data.shiftOverview = document.getElementById('shiftOverview').value;
-  S.data.issuesNotes   = document.getElementById('issuesNotes').value;
-  S.data.fashionStaff  = +document.getElementById('f-staff').value||0;
-  S.data.perfStaff     = +document.getElementById('p-staff').value||0;
-  S.data.putawayStaff  = +document.getElementById('pw-staff-in').value||0;
-  S.data.putawayActual = +document.getElementById('pw-actual-in').value||0;
-  S.data.sodInbox      = +document.getElementById('sod-inbox').value||0;
-  S.data.eodInbox      = +document.getElementById('eod-inbox').value||0;
+  S.data.shiftOverview=document.getElementById('shiftOverview').value;
+  S.data.issuesNotes=document.getElementById('issuesNotes').value;
+  S.data.fashionStaff=+document.getElementById('fs-in').value||0;
+  S.data.perfStaff=+document.getElementById('ps-in').value||0;
+  S.data.putawayStaff=+document.getElementById('pws-in').value||0;
+  S.data.putawayActual=+document.getElementById('pwa-in').value||0;
+  S.data.sodInbox=+document.getElementById('sod-inbox').value||0;
+  S.data.eodInbox=+document.getElementById('eod-inbox').value||0;
 }
 
 async function saveShift(){
   collectData();
   if(!S.data) return;
   S.data.savedBy=S.user.name; S.data.savedAt=new Date().toISOString();
-  const {error:saveErr}=await SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user.name,officer_email:S.user.email,data_json:JSON.stringify(S.data),saved_at:S.data.savedAt,saved_by:S.user.name},{onConflict:'shift_key'});
-  if(saveErr) toast('Save failed: '+saveErr.message,'error');
+  const {error}=await SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user.name,officer_email:S.user.email,data_json:JSON.stringify(S.data),saved_at:S.data.savedAt,saved_by:S.user.name},{onConflict:'shift_key'});
+  if(error) toast('Save failed: '+error.message,'error');
   else toast('Shift saved to cloud! ☁️','success');
 }
 
-function changeDate(){ collectData(); if(S.data) SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user?.name||'',data_json:JSON.stringify(S.data),saved_at:new Date().toISOString(),saved_by:S.user?.name||''},{onConflict:'shift_key'}); S.date=document.getElementById('hdr-date').value; loadShift(); updateTiles(); }
-function changeShift(s){ collectData(); if(S.data) SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user?.name||'',data_json:JSON.stringify(S.data),saved_at:new Date().toISOString(),saved_by:S.user?.name||''},{onConflict:'shift_key'}); S.shift=s; document.getElementById('pill-AM').classList.toggle('active',s==='AM'); document.getElementById('pill-PM').classList.toggle('active',s==='PM'); loadShift(); updateTiles(); }
+async function changeDate(){
+  collectData();
+  if(S.data) await SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user.name,data_json:JSON.stringify(S.data),saved_at:new Date().toISOString(),saved_by:S.user.name},{onConflict:'shift_key'});
+  S.date=document.getElementById('hdr-date').value;
+  await loadShift(); updateTiles();
+}
 
-// ── Render ───────────────────────────────────────────────────
+async function changeShift(sh){
+  collectData();
+  if(S.data) await SB.from('isr_shifts').upsert({shift_key:`${S.date}_${S.shift}`,date:S.date,shift:S.shift,officer:S.user.name,data_json:JSON.stringify(S.data),saved_at:new Date().toISOString(),saved_by:S.user.name},{onConflict:'shift_key'});
+  S.shift=sh;
+  document.getElementById('pill-AM').classList.toggle('active',sh==='AM');
+  document.getElementById('pill-PM').classList.toggle('active',sh==='PM');
+  await loadShift(); updateTiles();
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════
 function renderAll(){
   const d=S.data;
   document.getElementById('shiftOverview').value=d.shiftOverview||'';
   document.getElementById('issuesNotes').value=d.issuesNotes||'';
-  document.getElementById('f-staff').value=d.fashionStaff||5;
-  document.getElementById('p-staff').value=d.perfStaff||0;
-  document.getElementById('pw-staff-in').value=d.putawayStaff||0;
-  document.getElementById('pw-actual-in').value=d.putawayActual||0;
+  document.getElementById('fs-in').value=d.fashionStaff||5;
+  document.getElementById('ps-in').value=d.perfStaff||0;
+  document.getElementById('pws-in').value=d.putawayStaff||0;
+  document.getElementById('pwa-in').value=d.putawayActual||0;
   document.getElementById('sod-inbox').value=d.sodInbox||'';
   document.getElementById('eod-inbox').value=d.eodInbox||'';
-  renderAppts(); renderWip(); renderPriority();
-  calcFashion(); calcPerf(); calcPutaway(); calcEmail();
-  updateBadges();
+  renderAppts(); renderWip(); renderPri();
+  calcF(); calcP(); calcPW(); calcEmail(); updateBadges();
 }
 
-function typeBadge(t){ const m={'Appointment No.':['b-appt','Appt'],'Perf Appt No.':['b-perf','Perf'],'Dublin':['b-dublin','Dublin'],'Birmingham':['b-birm','Birm']}; const [c,l]=m[t]||['b-other',t.slice(0,5)]; return `<span class="badge ${c}">${l}</span>`; }
-function ynBadge(v){ return v==='Y'?'<span class="badge b-y">Y</span>':v==='N'?'<span class="badge b-n">N</span>':'<span class="badge b-na">N/A</span>'; }
-function qtyD(q){ return(!q||q==0)?'<span class="badge b-na">N/A</span>':`<span class="td-mono">${q}</span>`; }
-function fmtTs(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
-function initials(n){ return(n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase(); }
-function kpiColor(p){ return p>=100?'var(--green)':p>=75?'var(--teal)':p>=50?'var(--amber)':'var(--red)'; }
+function tbadge(t){const m={'Appointment No.':['bappt','Appt'],'Perf Appt No.':['bperf','Perf'],'Dublin':['bdub','Dublin'],'Birmingham':['bbirm','Birm']};const[c,l]=m[t]||['both',t.slice(0,5)];return`<span class="badge ${c}">${l}</span>`;}
+function ynb(v){return v==='Y'?'<span class="badge by">Y</span>':v==='N'?'<span class="badge bn">N</span>':'<span class="badge bna">N/A</span>';}
+function qtyd(q){return(!q||q==0)?'<span class="badge bna">N/A</span>':`<span class="tm">${q}</span>`;}
+function fmtTs(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
+function inits(n){return(n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();}
+function kpiCol(p){return p>=100?'var(--green)':p>=75?'var(--teal)':p>=50?'var(--amber)':'var(--red)';}
 
 function renderAppts(){
-  const tb=document.getElementById('appts-tbody'), a=S.data.appointments||[];
-  if(!a.length){ tb.innerHTML='<tr><td colspan="10" class="section-empty">No appointments yet.</td></tr>'; return; }
+  const tb=document.getElementById('appts-tb'),a=S.data.appointments||[];
+  if(!a.length){tb.innerHTML='<tr><td colspan="10" class="se">No appointments yet.</td></tr>';return;}
   tb.innerHTML=a.map(r=>{
-    const isP=r.isPriority, al=r.othersSpec?`${r.apptNo} <small style="color:var(--text2)">(${r.othersSpec})</small>`:r.apptNo;
-    return `<tr class="${isP?'td-pri':''}">
-      <td>${typeBadge(r.type)}</td>
-      <td class="td-appt td-mono">${al}${isP?' <span style="color:#ef4444;font-size:9px">★</span>':''}</td>
-      <td>${qtyD(r.qty)}</td><td class="td-mono">${r.dept||'—'}</td>
-      <td>${ynBadge(r.merretUpdated)}</td><td>${ynBadge(r.appUpdated)}</td>
-      <td>${ynBadge(r.putawayComplete)}</td><td>${ynBadge(r.putawayVerification)}</td>
-      <td style="font-size:10px;color:var(--text3)"><div>${r.enteredBy||'—'}</div><div>${r.enteredAt?new Date(r.enteredAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):''}</div>${r.modifiedBy?`<div class="mod-tag">✏ ${r.modifiedBy}</div>`:''}</td>
+    const isP=r.isPriority,al=r.othersSpec?`${r.apptNo} <small style="color:var(--text2)">(${r.othersSpec})</small>`:r.apptNo;
+    return`<tr class="${isP?'tpri':''}">
+      <td>${tbadge(r.type)}</td><td class="tm">${al}${isP?' <span style="color:#ef4444;font-size:9px">★</span>':''}</td>
+      <td>${qtyd(r.qty)}</td><td class="tm">${r.dept||'—'}</td>
+      <td>${ynb(r.merretUpdated)}</td><td>${ynb(r.appUpdated)}</td>
+      <td>${ynb(r.putawayComplete)}</td><td>${ynb(r.putawayVerification)}</td>
+      <td style="font-size:10px;color:var(--text3)"><div>${r.enteredBy||'—'}</div><div>${r.enteredAt?new Date(r.enteredAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):''}</div>${r.modifiedBy?`<div class="mt">✏ ${r.modifiedBy}</div>`:''}</td>
       <td><div class="acts">
-        <button class="act act-edit" onclick="startEditAppt('${r.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
-        <button class="act act-del" onclick="delAppt('${r.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+        <button class="act ae" onclick="startEdit('${r.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+        <button class="act ad" onclick="delAppt('${r.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
       </div></td></tr>`;
   }).join('');
 }
 
 function renderWip(){
-  const el=document.getElementById('wip-cards'), w=S.data.workInProgress||[];
-  if(!w.length){ el.innerHTML='<div class="section-empty">No WIP entries.</div>'; return; }
-  el.innerHTML=w.map(x=>`<div class="wip-card"><div class="wc-head"><div class="wc-appt">${x.apptNo||'—'}</div><span class="badge b-am">WIP</span></div>
-    <div class="wc-fields"><div class="wc-f"><div class="wf-l">Qty</div><div class="wf-v">${x.qty||'—'}</div></div><div class="wc-f"><div class="wf-l">Brand</div><div class="wf-v">${x.brand||'—'}</div></div><div class="wc-f"><div class="wf-l">Bench</div><div class="wf-v">${x.bench||'—'}</div></div></div>
-    <div class="wc-foot"><span class="wc-meta">${x.enteredBy||''}</span><button class="act act-del" onclick="delWip('${x.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
+  const el=document.getElementById('wip-cards'),w=S.data.workInProgress||[];
+  if(!w.length){el.innerHTML='<div class="se">No WIP entries.</div>';return;}
+  el.innerHTML=w.map(x=>`<div class="wc"><div class="wh"><div class="wa">${x.apptNo||'—'}</div><span class="badge bam">WIP</span></div>
+    <div class="wf2"><div><div class="wfl">Qty</div><div class="wfv">${x.qty||'—'}</div></div><div><div class="wfl">Brand</div><div class="wfv">${x.brand||'—'}</div></div><div><div class="wfl">Bench</div><div class="wfv">${x.bench||'—'}</div></div></div>
+    <div class="wft"><span class="wm">${x.enteredBy||''}</span><button class="act ad" onclick="delWip('${x.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
   </div>`).join('');
 }
 
-function renderPriority(){
-  const el=document.getElementById('pri-cards'), p=S.data.priorityAppointments||[];
-  if(!p.length){ el.innerHTML='<div class="section-empty">No priority appointments.</div>'; return; }
-  el.innerHTML=p.map(x=>`<div class="wip-card p-card"><div class="wc-head"><div class="wc-appt">${x.apptNo||'—'}</div><span class="badge b-n">★ PRIORITY</span></div>
-    <div class="wc-fields"><div class="wc-f"><div class="wf-l">Qty</div><div class="wf-v">${x.qty||'—'}</div></div><div class="wc-f"><div class="wf-l">Brand</div><div class="wf-v">${x.brand||'—'}</div></div></div>
-    <div class="wc-foot"><span class="wc-meta">${x.enteredBy||''}</span><button class="act act-del" onclick="delPriority('${x.id}')"><svg fill="none" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
+function renderPri(){
+  const el=document.getElementById('pri-cards'),p=S.data.priorityAppointments||[];
+  if(!p.length){el.innerHTML='<div class="se">No priority appointments.</div>';return;}
+  el.innerHTML=p.map(x=>`<div class="wc pc"><div class="wh"><div class="wa">${x.apptNo||'—'}</div><span class="badge bn">★ PRIORITY</span></div>
+    <div class="wf2"><div><div class="wfl">Qty</div><div class="wfv">${x.qty||'—'}</div></div><div><div class="wfl">Brand</div><div class="wfv">${x.brand||'—'}</div></div></div>
+    <div class="wft"><span class="wm">${x.enteredBy||''}</span><button class="act ad" onclick="delPri('${x.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
   </div>`).join('');
 }
 
 function updateBadges(){
-  const a=S.data.appointments||[], w=S.data.workInProgress||[], p=S.data.priorityAppointments||[];
-  ['nb-appts','qs-a'].forEach(id=>document.getElementById(id).textContent=a.length);
-  ['nb-wip','qs-w'].forEach(id=>document.getElementById(id).textContent=w.length);
-  ['nb-pri','qs-p'].forEach(id=>document.getElementById(id).textContent=p.length);
+  const a=S.data.appointments||[],w=S.data.workInProgress||[],p=S.data.priorityAppointments||[];
+  ['nb-a','qs-a'].forEach(id=>document.getElementById(id).textContent=a.length);
+  ['nb-w','qs-w'].forEach(id=>document.getElementById(id).textContent=w.length);
+  ['nb-p','qs-p'].forEach(id=>document.getElementById(id).textContent=p.length);
   document.getElementById('qs-fq').textContent=a.filter(x=>x.type==='Appointment No.').reduce((s,x)=>s+(+x.qty||0),0);
   document.getElementById('qs-pq').textContent=a.filter(x=>x.type==='Perf Appt No.').reduce((s,x)=>s+(+x.qty||0),0);
 }
 
-// ── CRUD ─────────────────────────────────────────────────────
-function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
-function handleFType(){ document.getElementById('f-others-row').style.display=document.getElementById('f-type').value==='Others'?'block':'none'; }
-function handleEType(){ document.getElementById('e-others-row').style.display=document.getElementById('e-type').value==='Others'?'block':'none'; }
+// ═══════════════════════════════════════════════════════
+// CRUD
+// ═══════════════════════════════════════════════════════
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+function fTypeChg(){document.getElementById('f-others-r').style.display=document.getElementById('f-type').value==='Others'?'block':'none';}
+function eTypeChg(){document.getElementById('e-others-r').style.display=document.getElementById('e-type').value==='Others'?'block':'none';}
 
-function saveAppt(){
-  const type=document.getElementById('f-type').value, apptNo=document.getElementById('f-apptno').value.trim();
-  if(!apptNo){ toast('Appointment No. required.','error'); return; }
+async function saveAppt(){
+  const type=document.getElementById('f-type').value,apptNo=document.getElementById('f-apptno').value.trim();
+  if(!apptNo){toast('Appointment No. required.','error');return;}
   const entry={id:uid(),type,apptNo,othersSpec:type==='Others'?document.getElementById('f-othersspec').value.trim():'',
     qty:+document.getElementById('f-qty').value||0,dept:document.getElementById('f-dept').value.trim(),
     merretUpdated:document.getElementById('f-merret').value,appUpdated:document.getElementById('f-app').value,
@@ -887,96 +961,80 @@ function saveAppt(){
     isPriority:document.getElementById('f-priority').value==='yes',enteredBy:S.user.name,enteredAt:new Date().toISOString()};
   if(entry.isPriority) S.data.priorityAppointments.push({id:uid(),apptNo:entry.apptNo,qty:entry.qty,brand:'',enteredBy:S.user.name,enteredAt:entry.enteredAt});
   S.data.appointments.push(entry);
-  saveShift(); renderAppts(); renderPriority(); updateBadges(); closeForm('apptForm'); calcFashion(); calcPerf();
+  await saveShift();renderAppts();renderPri();updateBadges();cForm('apptForm');calcF();calcP();
   toast('Appointment added!','success');
 }
 
-function startEditAppt(id){
-  const r=S.data.appointments.find(a=>a.id===id); if(!r) return;
+function startEdit(id){
+  const r=S.data.appointments.find(a=>a.id===id);if(!r)return;
   S.editApptId=id;
-  document.getElementById('e-type').value=r.type;
-  document.getElementById('e-apptno').value=r.apptNo;
-  document.getElementById('e-othersspec').value=r.othersSpec||'';
-  document.getElementById('e-others-row').style.display=r.type==='Others'?'block':'none';
-  document.getElementById('e-qty').value=r.qty;
-  document.getElementById('e-dept').value=r.dept||'';
-  document.getElementById('e-merret').value=r.merretUpdated;
-  document.getElementById('e-app').value=r.appUpdated;
-  document.getElementById('e-putawayc').value=r.putawayComplete;
-  document.getElementById('e-putawayv').value=r.putawayVerification;
+  document.getElementById('e-type').value=r.type;document.getElementById('e-apptno').value=r.apptNo;
+  document.getElementById('e-othersspec').value=r.othersSpec||'';document.getElementById('e-others-r').style.display=r.type==='Others'?'block':'none';
+  document.getElementById('e-qty').value=r.qty;document.getElementById('e-dept').value=r.dept||'';
+  document.getElementById('e-merret').value=r.merretUpdated;document.getElementById('e-app').value=r.appUpdated;
+  document.getElementById('e-putawayc').value=r.putawayComplete;document.getElementById('e-putawayv').value=r.putawayVerification;
   document.getElementById('e-priority').value=r.isPriority?'yes':'no';
-  openOverlay('editApptOverlay');
+  openOv('editApptOv');
 }
 
-function commitEdit(){
-  const r=S.data.appointments.find(a=>a.id===S.editApptId); if(!r) return;
-  confirm2('Confirm Edit',`Modify ${r.apptNo}?`,'Your name will be recorded.','warn','Save','btn-teal',()=>{
-    r.type=document.getElementById('e-type').value; r.apptNo=document.getElementById('e-apptno').value.trim();
+async function commitEdit(){
+  const r=S.data.appointments.find(a=>a.id===S.editApptId);if(!r)return;
+  conf2(`Modify ${r.apptNo}?`,'Your name will be recorded.','','warn','Save','bt',async()=>{
+    r.type=document.getElementById('e-type').value;r.apptNo=document.getElementById('e-apptno').value.trim();
     r.othersSpec=r.type==='Others'?document.getElementById('e-othersspec').value.trim():'';
-    r.qty=+document.getElementById('e-qty').value||0; r.dept=document.getElementById('e-dept').value.trim();
-    r.merretUpdated=document.getElementById('e-merret').value; r.appUpdated=document.getElementById('e-app').value;
-    r.putawayComplete=document.getElementById('e-putawayc').value; r.putawayVerification=document.getElementById('e-putawayv').value;
-    r.isPriority=document.getElementById('e-priority').value==='yes'; r.modifiedBy=S.user.name; r.modifiedAt=new Date().toISOString();
-    saveShift(); renderAppts(); updateBadges(); calcFashion(); calcPerf(); closeOverlay('editApptOverlay'); toast('Updated!','success');
+    r.qty=+document.getElementById('e-qty').value||0;r.dept=document.getElementById('e-dept').value.trim();
+    r.merretUpdated=document.getElementById('e-merret').value;r.appUpdated=document.getElementById('e-app').value;
+    r.putawayComplete=document.getElementById('e-putawayc').value;r.putawayVerification=document.getElementById('e-putawayv').value;
+    r.isPriority=document.getElementById('e-priority').value==='yes';r.modifiedBy=S.user.name;r.modifiedAt=new Date().toISOString();
+    await saveShift();renderAppts();updateBadges();calcF();calcP();closeOv('editApptOv');toast('Updated!','success');
   });
 }
 
-function delAppt(id){ const r=S.data.appointments.find(a=>a.id===id); if(!r) return; confirm2('Delete',`Delete ${r.apptNo}?`,'','danger','Delete','btn-red',()=>{ S.data.appointments=S.data.appointments.filter(a=>a.id!==id); saveShift(); renderAppts(); updateBadges(); calcFashion(); calcPerf(); }); }
+async function delAppt(id){const r=S.data.appointments.find(a=>a.id===id);if(!r)return;conf2(`Delete ${r.apptNo}?`,'Permanently removed.','','danger','Delete','br',async()=>{S.data.appointments=S.data.appointments.filter(a=>a.id!==id);await saveShift();renderAppts();updateBadges();calcF();calcP();});}
 
-function saveWip(){
-  const apptNo=document.getElementById('w-apptno').value.trim(); if(!apptNo){ toast('Appointment No. required.','error'); return; }
-  S.data.workInProgress.push({id:uid(),apptNo,qty:+document.getElementById('w-qty').value||0,brand:document.getElementById('w-brand').value.trim(),bench:document.getElementById('w-bench').value.trim(),enteredBy:S.user.name,enteredAt:new Date().toISOString()});
-  saveShift(); renderWip(); updateBadges(); closeForm('wipForm'); toast('WIP added!','success');
-}
-function delWip(id){ S.data.workInProgress=S.data.workInProgress.filter(w=>w.id!==id); saveShift(); renderWip(); updateBadges(); }
+async function saveWip(){const apptNo=document.getElementById('w-apptno').value.trim();if(!apptNo){toast('Appt No. required.','error');return;}S.data.workInProgress.push({id:uid(),apptNo,qty:+document.getElementById('w-qty').value||0,brand:document.getElementById('w-brand').value.trim(),bench:document.getElementById('w-bench').value.trim(),enteredBy:S.user.name,enteredAt:new Date().toISOString()});await saveShift();renderWip();updateBadges();cForm('wipForm');toast('WIP added!','success');}
+async function delWip(id){S.data.workInProgress=S.data.workInProgress.filter(w=>w.id!==id);await saveShift();renderWip();updateBadges();}
 
-function savePriority(){
-  const apptNo=document.getElementById('p-apptno').value.trim(); if(!apptNo){ toast('Appointment No. required.','error'); return; }
-  S.data.priorityAppointments.push({id:uid(),apptNo,qty:+document.getElementById('p-qty').value||0,brand:document.getElementById('p-brand').value.trim(),enteredBy:S.user.name,enteredAt:new Date().toISOString()});
-  saveShift(); renderPriority(); updateBadges(); closeForm('priForm'); toast('Priority added!','success');
-}
-function delPriority(id){ S.data.priorityAppointments=S.data.priorityAppointments.filter(p=>p.id!==id); saveShift(); renderPriority(); updateBadges(); }
+async function savePriority(){const apptNo=document.getElementById('p-apptno').value.trim();if(!apptNo){toast('Appt No. required.','error');return;}S.data.priorityAppointments.push({id:uid(),apptNo,qty:+document.getElementById('p-qty').value||0,brand:document.getElementById('p-brand').value.trim(),enteredBy:S.user.name,enteredAt:new Date().toISOString()});await saveShift();renderPri();updateBadges();cForm('priForm');toast('Priority added!','success');}
+async function delPri(id){S.data.priorityAppointments=S.data.priorityAppointments.filter(p=>p.id!==id);await saveShift();renderPri();updateBadges();}
 
-// ── KPI ──────────────────────────────────────────────────────
-function kpiSet(pre,staff,hrs,target,actual,kpi){
-  document.getElementById(pre+'-staff').textContent=staff;
-  document.getElementById(pre+'-hrs').textContent=hrs.toFixed(1);
-  document.getElementById(pre+'-target').textContent=Math.round(target).toLocaleString();
-  document.getElementById(pre+'-actual').textContent=(+actual).toLocaleString();
-  document.getElementById(pre+'-pct').textContent=kpi.toFixed(1)+'%';
-  const b=document.getElementById(pre+'-bar'), pct=Math.min(100,kpi);
-  b.style.width=pct+'%'; b.style.background=kpiColor(pct);
-}
-function calcFashion(){ const st=+document.getElementById('f-staff').value||0,hrs=st*7.5; document.getElementById('f-hrs').value=hrs; const tgt=34*hrs,act=(S.data.appointments||[]).filter(a=>a.type==='Appointment No.').reduce((s,a)=>s+(+a.qty||0),0); kpiSet('fk',st,hrs,tgt,act,tgt>0?(act/tgt)*100:0); if(S.data) S.data.fashionStaff=st; }
-function calcPerf(){ const st=+document.getElementById('p-staff').value||0,hrs=st*7.5; document.getElementById('p-hrs').value=hrs; const tgt=321*hrs,act=(S.data.appointments||[]).filter(a=>a.type==='Perf Appt No.').reduce((s,a)=>s+(+a.qty||0),0); kpiSet('pk',st,hrs,tgt,act,tgt>0?(act/tgt)*100:0); if(S.data) S.data.perfStaff=st; }
-function calcPutaway(){ const st=+document.getElementById('pw-staff-in').value||0,hrs=st*7.5; document.getElementById('pw-hrs-in').value=hrs; const tgt=(1000/7.5)*hrs,act=+document.getElementById('pw-actual-in').value||0; kpiSet('pw',st,hrs,tgt,act,tgt>0?(act/tgt)*100:0); if(S.data){ S.data.putawayStaff=st; S.data.putawayActual=act; } }
-function calcEmail(){ const s=+document.getElementById('sod-inbox').value||0,e=+document.getElementById('eod-inbox').value||0,d=e-s; document.getElementById('em-sod').textContent=s; document.getElementById('em-eod').textContent=e; document.getElementById('em-delta').textContent=(d>0?'+':'')+d; document.getElementById('em-desc').textContent=d>0?'Inbox increased':d<0?'Inbox reduced':'No change'; if(S.data){ S.data.sodInbox=s; S.data.eodInbox=e; } }
+// ═══════════════════════════════════════════════════════
+// KPI
+// ═══════════════════════════════════════════════════════
+function kSet(pre,st,hr,tgt,act,pct){document.getElementById(pre+'-s').textContent=st;document.getElementById(pre+'-h').textContent=hr.toFixed(1);document.getElementById(pre+'-t').textContent=Math.round(tgt).toLocaleString();document.getElementById(pre+'-a').textContent=(+act).toLocaleString();document.getElementById(pre+'-p').textContent=pct.toFixed(1)+'%';const b=document.getElementById(pre+'-b'),p2=Math.min(100,pct);b.style.width=p2+'%';b.style.background=kpiCol(p2);}
+function calcF(){const st=+document.getElementById('fs-in').value||0,hr=st*7.5;document.getElementById('fh-in').value=hr;const tgt=34*hr,act=(S.data?.appointments||[]).filter(a=>a.type==='Appointment No.').reduce((s,a)=>s+(+a.qty||0),0);kSet('fk',st,hr,tgt,act,tgt>0?(act/tgt)*100:0);if(S.data)S.data.fashionStaff=st;}
+function calcP(){const st=+document.getElementById('ps-in').value||0,hr=st*7.5;document.getElementById('ph-in').value=hr;const tgt=321*hr,act=(S.data?.appointments||[]).filter(a=>a.type==='Perf Appt No.').reduce((s,a)=>s+(+a.qty||0),0);kSet('pk',st,hr,tgt,act,tgt>0?(act/tgt)*100:0);if(S.data)S.data.perfStaff=st;}
+function calcPW(){const st=+document.getElementById('pws-in').value||0,hr=st*7.5;document.getElementById('pwh-in').value=hr;const tgt=(1000/7.5)*hr,act=+document.getElementById('pwa-in').value||0;kSet('pw',st,hr,tgt,act,tgt>0?(act/tgt)*100:0);if(S.data){S.data.putawayStaff=st;S.data.putawayActual=act;}}
+function calcEmail(){const s=+document.getElementById('sod-inbox').value||0,e=+document.getElementById('eod-inbox').value||0,d=e-s;document.getElementById('em-s').textContent=s;document.getElementById('em-e').textContent=e;document.getElementById('em-d').textContent=(d>0?'+':'')+d;document.getElementById('em-ds').textContent=d>0?'Inbox increased':d<0?'Inbox reduced':'No change';if(S.data){S.data.sodInbox=s;S.data.eodInbox=e;}}
 
-// ── NAV ──────────────────────────────────────────────────────
-function showPage(id,btn){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); if(btn) btn.classList.add('active'); }
-function toggleForm(id){ const f=document.getElementById(id); f.classList.toggle('open'); if(f.classList.contains('open')) f.querySelectorAll('input,select').forEach(el=>{ if(el.tagName==='INPUT'&&el.type!=='checkbox') el.value=''; else if(el.tagName==='SELECT') el.selectedIndex=0; }); }
-function closeForm(id){ document.getElementById(id).classList.remove('open'); }
+// ═══════════════════════════════════════════════════════
+// NAV / FORMS / MODALS
+// ═══════════════════════════════════════════════════════
+function showPage(id,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+id).classList.add('active');if(btn)btn.classList.add('active');}
+function tog(id){const f=document.getElementById(id);f.classList.toggle('open');if(f.classList.contains('open'))f.querySelectorAll('input,select').forEach(el=>{if(el.tagName==='INPUT'&&el.type!=='checkbox')el.value='';else if(el.tagName==='SELECT')el.selectedIndex=0;});}
+function cForm(id){document.getElementById(id).classList.remove('open');}
+function openOv(id){document.getElementById(id).classList.add('open');}
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+document.addEventListener('click',e=>{if(e.target.classList.contains('ov'))e.target.classList.remove('open');});
 
-// ── MODALS ───────────────────────────────────────────────────
-function openOverlay(id){ document.getElementById(id).classList.add('open'); }
-function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
-document.addEventListener('click',e=>{ if(e.target.classList.contains('overlay')) e.target.classList.remove('open'); });
-
-function confirm2(title,msg,sub,type,okLbl,okCls,cb){
-  S.confirmCb=cb;
-  document.getElementById('conf-title').textContent=title;
-  document.getElementById('conf-msg').textContent=msg;
-  document.getElementById('conf-sub').textContent=sub||'';
-  const wi=document.getElementById('conf-icon');
-  wi.className='confirm-icon '+(type==='danger'?'ci-danger':'ci-warn');
+function conf2(title,msg,sub,type,okLbl,okCls,cb){
+  S.confCb=cb;
+  document.getElementById('conf-t').textContent=title;
+  document.getElementById('conf-m').textContent=msg;
+  document.getElementById('conf-s').textContent=sub||'';
+  const wi=document.getElementById('conf-i');
+  wi.className='ci '+(type==='danger'?'ci-d':'ci-w');
   wi.innerHTML=type==='danger'?'<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="22" height="22"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>':'<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="22" height="22"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
-  document.getElementById('conf-ok').textContent=okLbl; document.getElementById('conf-ok').className='btn '+okCls;
-  openOverlay('confirmOverlay');
+  document.getElementById('conf-ok').textContent=okLbl;document.getElementById('conf-ok').className='btn '+okCls;
+  openOv('confOv');
 }
-function execConfirm(){ if(S.confirmCb) S.confirmCb(); closeOverlay('confirmOverlay'); S.confirmCb=null; }
+function execConf(){if(S.confCb)S.confCb();closeOv('confOv');S.confCb=null;}
 
-// ── ADMIN ────────────────────────────────────────────────────
-function openAdminLoginModal(){ openOverlay('adminLoginOverlay'); }
+// ═══════════════════════════════════════════════════════
+// ADMIN
+// ═══════════════════════════════════════════════════════
+function openAdminLoginModal(){openOv('adminLoginOv');}
+
 async function doAdminLogin(){
   const email=document.getElementById('al-email').value.trim().toLowerCase();
   const pwd=document.getElementById('al-pwd').value.trim();
@@ -985,84 +1043,107 @@ async function doAdminLogin(){
   const {data:au}=await SB.from('isr_users').select('*').eq('email',email).limit(1);
   hideLoading();
   const u2=au?.[0];
-  if(!u2||u2.pwd!==pwd||!['admin','superadmin'].includes(u2.role)){ document.getElementById('al-err').classList.add('show'); return; }
-  S.user=u2; S.date=S.date||new Date().toISOString().split('T')[0]; S.shift='AM';
-  closeOverlay('adminLoginOverlay');
-  document.getElementById('loginScreen').classList.add('hidden');
+  if(!u2||u2.pwd!==pwd||!['admin','superadmin'].includes(u2.role)){document.getElementById('al-err').classList.add('show');return;}
+  S.user=u2;S.date=S.date||new Date().toISOString().split('T')[0];S.shift='AM';
+  closeOv('adminLoginOv');
+  document.getElementById('loginScreen').classList.remove('show');
   document.getElementById('app').classList.add('visible');
-  setupUI(); loadShift(); openAdminPanel();
+  await setupUI();await loadShift();openAdminPanel();
 }
 
-function openAdminPanel(){ document.getElementById('adminPanel').classList.add('open'); loadAdminDashboard(); loadUsers(); }
-function closeAdminPanel(){ document.getElementById('adminPanel').classList.remove('open'); }
+async function openAdminPanel(){document.getElementById('adminPanel').classList.add('open');await loadDash();await loadUsers2();}
+function closeAdmin(){document.getElementById('adminPanel').classList.remove('open');}
 
-function apTab(id,btn){ document.querySelectorAll('.ap-section').forEach(s=>s.classList.remove('active')); document.querySelectorAll('.ap-tab').forEach(b=>b.classList.remove('active')); document.getElementById('ap-'+id).classList.add('active'); btn.classList.add('active'); if(id==='log') loadLog(); if(id==='records') searchRecords('all'); if(id==='settings') loadSettings(); }
+function apTab(id,btn){document.querySelectorAll('.aps').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.ap-tab').forEach(b=>b.classList.remove('active'));document.getElementById('ap-'+id).classList.add('active');btn.classList.add('active');if(id==='log')loadLog();if(id==='records')searchRec('all');}
 
-async function loadAdminDashboard(){
-  const [users,shifts,log]=await Promise.all([api('GET','/api/users'),api('GET','/api/shifts'),api('GET','/api/log')]);
+async function loadDash(){
+  const [{data:users},{data:shifts},{data:log}]=await Promise.all([
+    SB.from('isr_users').select('id,active'),
+    SB.from('isr_shifts').select('id'),
+    SB.from('isr_log').select('id,name,email,role,shift,login_at').order('login_at',{ascending:false}).limit(200)
+  ]);
   const today=new Date().toISOString().split('T')[0];
-  document.getElementById('ap-users').textContent=(users||[]).filter(u=>u.active).length;
-  document.getElementById('ap-shifts').textContent=(shifts||[]).length;
-  document.getElementById('ap-today').textContent=(log||[]).filter(l=>l.date===today).length;
-  document.getElementById('ap-total').textContent=(log||[]).length;
-  document.getElementById('ap-recent-logins').innerHTML=(log||[]).slice(0,8).map(l=>`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
-    <div style="width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${initials(l.name)}</div>
-    <div><div style="font-weight:600">${l.name}</div><div style="font-size:10px;color:var(--text3)">${fmtTs(l.loginAt)}</div></div>
-    <span class="badge ${l.shift==='AM'?'b-am':'b-pm'}" style="margin-left:auto">${l.shift}</span></div>`).join('')||'<div class="empty">No logins yet.</div>';
-  document.getElementById('ap-user-list').innerHTML=(users||[]).map(u=>`<div style="display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
-    <div style="width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${initials(u.name)}</div>
+  document.getElementById('ap-u').textContent=(users||[]).filter(u=>u.active).length;
+  document.getElementById('ap-sh').textContent=(shifts||[]).length;
+  document.getElementById('ap-td').textContent=(log||[]).filter(l=>l.login_at?.startsWith(today)).length;
+  document.getElementById('ap-tl').textContent=(log||[]).length;
+  const {data:allUsers}=await SB.from('isr_users').select('id,name,email,role,active');
+  document.getElementById('ap-rl').innerHTML=(log||[]).slice(0,8).map(l=>`<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+    <div style="width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${inits(l.name)}</div>
+    <div><div style="font-weight:600">${l.name}</div><div style="font-size:10px;color:var(--text3)">${fmtTs(l.login_at)}</div></div>
+    <span class="badge ${l.shift==='AM'?'bam':'bpm'}" style="margin-left:auto">${l.shift}</span></div>`).join('')||'<div style="padding:16px;text-align:center;color:var(--text2);font-size:12px">No logins yet.</div>';
+  document.getElementById('ap-ul').innerHTML=(allUsers||[]).map(u=>`<div style="display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+    <div style="width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${inits(u.name)}</div>
     <div><div style="font-weight:600">${u.name}</div><div style="font-size:10px;color:var(--text3)">${u.email}</div></div>
-    <span class="badge ${u.role==='superadmin'?'b-super':u.role==='admin'?'b-admin':'b-user'}" style="margin-left:auto">${u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User'}</span></div>`).join('')||'<div class="empty">No users.</div>';
+    <span class="badge ${u.role==='superadmin'?'bsuper':u.role==='admin'?'badm':'busr'}" style="margin-left:auto">${u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User'}</span></div>`).join('')||'<div style="padding:16px;text-align:center;color:var(--text2);font-size:12px">No users.</div>';
 }
 
-async function loadUsers(){ await loadUsers2(); }
+async function loadUsers2(){
+  const [{data:users},{data:log}]=await Promise.all([
+    SB.from('isr_users').select('*').order('created_at',{ascending:true}),
+    SB.from('isr_log').select('user_id,login_at').order('login_at',{ascending:false})
+  ]);
+  const tb=document.getElementById('users-tb');
+  if(!(users||[]).length){tb.innerHTML='<tr><td colspan="6" class="se">No users yet.</td></tr>';return;}
+  tb.innerHTML=(users||[]).map(u=>{
+    const last=(log||[]).find(l=>l.user_id===u.id);
+    const rb=u.role==='superadmin'?'bsuper':u.role==='admin'?'badm':'busr';
+    const rl=u.role==='superadmin'?'Super Admin':u.role==='admin'?'Admin':'User';
+    return`<tr><td><div style="font-weight:600">${u.name}</div><div style="font-size:10px;color:var(--text3)">${u.notes||''}</div></td>
+      <td class="tm" style="font-size:11px">${u.email}</td>
+      <td><span class="badge ${rb}">${rl}</span></td>
+      <td><span class="badge ${u.active?'bact':'binact'}">${u.active?'Active':'Inactive'}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${last?fmtTs(last.login_at):'Never'}</td>
+      <td><div class="acts">
+        ${u.role!=='superadmin'?`
+          <button class="act ae" onclick="editUser('${u.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+          <button class="act at" onclick="togUser('${u.id}',${!u.active})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></button>
+          <button class="act ad" onclick="delUser('${u.id}','${u.name}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+        `:'<span style="font-size:10px;color:var(--text3)">Protected</span>'}
+      </div></td></tr>`;
+  }).join('');
+}
 
-function openAddUser(){ S.editUserId=null; document.getElementById('au-title').textContent='Register User'; ['u-name','u-email','u-pwd','u-notes'].forEach(id=>document.getElementById(id).value=''); document.getElementById('u-role').value='user'; document.getElementById('u-err').classList.remove('show'); openOv('addUserOv'); }
+function openAddUser(){S.editUserId=null;document.getElementById('au-title').textContent='Register User';['u-name','u-email','u-pwd','u-notes'].forEach(id=>document.getElementById(id).value='');document.getElementById('u-role').value='user';document.getElementById('u-err').classList.remove('show');openOv('addUserOv');}
 
 async function editUser(id){
   const {data:users}=await SB.from('isr_users').select('*').eq('id',id).limit(1);
-  const u=users?.[0]; if(!u) return;
+  const u=users?.[0];if(!u)return;
   S.editUserId=id;
   document.getElementById('au-title').textContent='Edit: '+u.name;
-  document.getElementById('u-name').value=u.name;
-  document.getElementById('u-email').value=u.email;
-  document.getElementById('u-role').value=u.role;
-  document.getElementById('u-pwd').value='';
+  document.getElementById('u-name').value=u.name;document.getElementById('u-email').value=u.email;
+  document.getElementById('u-role').value=u.role;document.getElementById('u-pwd').value='';
   document.getElementById('u-notes').value=u.notes||'';
-  document.getElementById('u-err').classList.remove('show');
-  openOv('addUserOv');
+  document.getElementById('u-err').classList.remove('show');openOv('addUserOv');
 }
 
 async function saveUser(){
-  const name=document.getElementById('u-name').value.trim();
-  const email=
-async function saveUser(){
-  const name=document.getElementById('u-name').value.trim(), email=document.getElementById('u-email').value.trim().toLowerCase(), role=document.getElementById('u-role').value, pwd=document.getElementById('u-pwd').value.trim(), notes=document.getElementById('u-notes').value.trim();
+  const name=document.getElementById('u-name').value.trim(),email=document.getElementById('u-email').value.trim().toLowerCase(),role=document.getElementById('u-role').value,pwd=document.getElementById('u-pwd').value.trim(),notes=document.getElementById('u-notes').value.trim();
   document.getElementById('u-err').classList.remove('show');
-  if(!name||!email){showFerr('u-err','Name and email required.'); return;}
+  if(!name||!email){showFerr('u-err','Name and email required.');return;}
   if(S.editUserId){
-    const upd={name,email,role,notes}; if(pwd)upd.pwd=pwd;
+    const upd={name,email,role,notes};if(pwd)upd.pwd=pwd;
     const {error}=await SB.from('isr_users').update(upd).eq('id',S.editUserId);
     if(error){showFerr('u-err',error.message);return;}
-    await loadUsers2(); await loadDash(); closeOv('addUserOv'); toast('User updated!','success');
+    await loadUsers2();await loadDash();closeOv('addUserOv');toast('User updated!','success');
   } else {
     if(!pwd){showFerr('u-err','Password required for new users.');return;}
     const {data:ex}=await SB.from('isr_users').select('id').eq('email',email).limit(1);
     if(ex&&ex.length){showFerr('u-err','Email already registered.');return;}
     const {error}=await SB.from('isr_users').insert({id:'u-'+Date.now().toString(36),name,email,pwd,role,active:true,notes,created_by:S.user.name});
     if(error){showFerr('u-err',error.message);return;}
-    await loadUsers2(); await loadDash(); closeOv('addUserOv'); toast('User registered!','success');
+    await loadUsers2();await loadDash();closeOv('addUserOv');toast('User registered!','success');
   }
 }
 
-async function togUser(id,active){ await SB.from('isr_users').update({active}).eq('id',id); await loadUsers2(); await loadDash(); toast(`User ${active?'activated':'deactivated'}.`,'info'); }
-function delUser(id,name){ conf2(`Delete ${name}?`,'Cannot be undone.','','danger','Delete','br',async()=>{ await SB.from('isr_users').delete().eq('id',id); await loadUsers2(); await loadDash(); }); }
+async function togUser(id,active){await SB.from('isr_users').update({active}).eq('id',id);await loadUsers2();await loadDash();toast(`User ${active?'activated':'deactivated'}.`,'info');}
+function delUser(id,name){conf2(`Delete ${name}?`,'Cannot be undone.','','danger','Delete','br',async()=>{await SB.from('isr_users').delete().eq('id',id);await loadUsers2();await loadDash();});}
 
 async function loadLog(){
   let q=SB.from('isr_log').select('*').order('login_at',{ascending:false}).limit(500);
-  const df=document.getElementById('log-date').value, sf=document.getElementById('log-shift').value;
-  if(df) q=q.gte('login_at',df+'T00:00:00').lte('login_at',df+'T23:59:59');
-  if(sf) q=q.eq('shift',sf);
+  const df=document.getElementById('log-date').value,sf=document.getElementById('log-shift').value;
+  if(df)q=q.gte('login_at',df+'T00:00:00').lte('login_at',df+'T23:59:59');
+  if(sf)q=q.eq('shift',sf);
   const {data:log}=await q;
   const tb=document.getElementById('log-tb');
   if(!(log||[]).length){tb.innerHTML='<tr><td colspan="7" class="se">No log entries.</td></tr>';return;}
@@ -1079,54 +1160,40 @@ async function loadLog(){
 
 async function searchRec(mode){
   let q=SB.from('isr_shifts').select('shift_key,date,shift,officer,data_json,saved_at').order('date',{ascending:false});
-  if(mode!=='all'){
-    const date=document.getElementById('rec-date').value, shift=document.getElementById('rec-shift').value;
-    if(date) q=q.eq('date',date);
-    if(shift) q=q.eq('shift',shift);
-  }
+  if(mode!=='all'){const date=document.getElementById('rec-date').value,shift=document.getElementById('rec-shift').value;if(date)q=q.eq('date',date);if(shift)q=q.eq('shift',shift);}
   const {data:rows}=await q.limit(100);
   const el=document.getElementById('rec-res');
   if(!(rows||[]).length){el.innerHTML='<div class="se">No records found.</div>';return;}
-  el.innerHTML=(rows||[]).map(r=>{
-    let apptCount=0; try{apptCount=(JSON.parse(r.data_json).appointments||[]).length;}catch{}
-    return `<div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+  el.innerHTML=(rows||[]).map(r=>{let c=0;try{c=(JSON.parse(r.data_json).appointments||[]).length;}catch{}
+    return`<div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px">
       <div><span style="font-weight:700;color:var(--navy)">${new Date(r.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}</span>
       <span class="badge ${r.shift==='AM'?'bam':'bpm'}" style="margin-left:8px">${r.shift}</span>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">Officer: <strong>${r.officer||'—'}</strong> · ${apptCount} appts · Saved: ${fmtTs(r.saved_at)}</div></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Officer: <strong>${r.officer||'—'}</strong> · ${c} appts · Saved: ${fmtTs(r.saved_at)}</div></div>
       <button class="btn bt bs" onclick="viewRec('${r.date}','${r.shift}')">View</button>
-    </div>`;
-  }).join('');
+    </div>`;}).join('');
 }
 
 async function viewRec(date,shift){
   const {data:row}=await SB.from('isr_shifts').select('*').eq('shift_key',`${date}_${shift}`).single();
   if(!row){toast('Record not found.','error');return;}
-  let d; try{d=JSON.parse(row.data_json);}catch{toast('Could not parse record.','error');return;}
+  let d;try{d=JSON.parse(row.data_json);}catch{toast('Could not parse record.','error');return;}
   document.getElementById('hv-title').textContent=`${new Date(date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} — ${shift} Shift`;
   let h=`<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px"><strong>Officer:</strong> ${d.officer||'—'} · <strong>Saved:</strong> ${fmtTs(d.savedAt)} by ${d.savedBy||'—'}</div>`;
-  if(d.shiftOverview) h+=`<strong>Overview:</strong><div style="background:#f8f8f8;border-radius:6px;padding:8px;margin:4px 0 12px;font-size:11px">${d.shiftOverview}</div>`;
+  if(d.shiftOverview)h+=`<strong>Overview:</strong><div style="background:#f8f8f8;border-radius:6px;padding:8px;margin:4px 0 12px;font-size:11px">${d.shiftOverview}</div>`;
   const a=d.appointments||[];
-  if(a.length){
-    h+=`<strong>Appointments (${a.length}):</strong><table style="width:100%;border-collapse:collapse;font-size:11px;margin:6px 0 12px"><thead><tr style="background:var(--navy)">${['Type','Appt No.','Qty','Dept','Merret','App','Putaway','Verif.','By'].map(c=>`<th style="padding:4px 8px;text-align:left;color:#8da8c0;font-size:9px">${c}</th>`).join('')}</tr></thead><tbody>`;
-    a.forEach((r,i)=>{h+=`<tr style="${i%2?'background:#f9f9f9':''}${r.isPriority?';color:#dc2626;font-weight:700':''}"><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.type}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-family:monospace">${r.apptNo}${r.isPriority?' ★':''}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.qty||'N/A'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.dept||'—'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.merretUpdated}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.appUpdated}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.putawayComplete}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.putawayVerification}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:10px">${r.enteredBy||'—'}</td></tr>`;});
-    h+='</tbody></table>';
-  }
+  if(a.length){h+=`<strong>Appointments (${a.length}):</strong><table style="width:100%;border-collapse:collapse;font-size:11px;margin:6px 0 12px"><thead><tr style="background:var(--navy)">${['Type','Appt No.','Qty','Dept','Merret','App','Putaway','Verif.','By'].map(c=>`<th style="padding:4px 8px;text-align:left;color:#8da8c0;font-size:9px">${c}</th>`).join('')}</tr></thead><tbody>`;
+  a.forEach((r,i)=>{h+=`<tr style="${i%2?'background:#f9f9f9':''}${r.isPriority?';color:#dc2626;font-weight:700':''}"><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.type}</td><td style="padding:4px 8px;font-family:monospace">${r.apptNo}${r.isPriority?' ★':''}</td><td style="padding:4px 8px">${r.qty||'N/A'}</td><td style="padding:4px 8px">${r.dept||'—'}</td><td style="padding:4px 8px">${r.merretUpdated}</td><td style="padding:4px 8px">${r.appUpdated}</td><td style="padding:4px 8px">${r.putawayComplete}</td><td style="padding:4px 8px">${r.putawayVerification}</td><td style="padding:4px 8px;font-size:10px">${r.enteredBy||'—'}</td></tr>`;});
+  h+='</tbody></table>';}
   const pri=d.priorityAppointments||[];
-  if(pri.length) h+=`<strong style="color:#dc2626">★ Priority:</strong><div style="margin:4px 0 12px">${pri.map(p=>`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:6px;margin-right:5px;font-weight:700;font-size:11px">${p.apptNo} Qty:${p.qty} ${p.brand||''}</span>`).join('')}</div>`;
-  if(d.issuesNotes) h+=`<strong>Issues & Notes:</strong><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:9px;margin-top:4px;font-size:11px;white-space:pre-wrap">${d.issuesNotes}</div>`;
-  document.getElementById('hv-body').innerHTML=h;
-  openOv('hvOv');
+  if(pri.length)h+=`<strong style="color:#dc2626">★ Priority:</strong><div style="margin:4px 0 12px">${pri.map(p=>`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:6px;margin-right:5px;font-weight:700;font-size:11px">${p.apptNo} Qty:${p.qty} ${p.brand||''}</span>`).join('')}</div>`;
+  if(d.issuesNotes)h+=`<strong>Issues & Notes:</strong><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:9px;margin-top:4px;font-size:11px;white-space:pre-wrap">${d.issuesNotes}</div>`;
+  document.getElementById('hv-body').innerHTML=h;openOv('hvOv');
 }
 
-// ═══════════════ HISTORY ═══════════════
-function openHistory(){ loadHist('all'); openOv('histOv'); }
+function openHistory(){loadHist('all');openOv('histOv');}
 async function loadHist(mode){
-  let q=SB.from('isr_shifts').select('shift_key,date,shift,officer,data_json,saved_at').order('date',{ascending:false});
-  if(mode!=='all'){
-    const date=document.getElementById('hist-date').value, shift=document.getElementById('hist-shift').value;
-    if(date) q=q.eq('date',date);
-    if(shift) q=q.eq('shift',shift);
-  }
+  let q=SB.from('isr_shifts').select('shift_key,date,shift,officer,saved_at').order('date',{ascending:false});
+  if(mode!=='all'){const date=document.getElementById('hist-date').value,shift=document.getElementById('hist-shift').value;if(date)q=q.eq('date',date);if(shift)q=q.eq('shift',shift);}
   const {data:rows}=await q.limit(100);
   const el=document.getElementById('hist-list');
   if(!(rows||[]).length){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No records found.</div>';return;}
@@ -1137,15 +1204,14 @@ async function loadHist(mode){
   </div>`).join('');
 }
 
-// ═══════════════ REPORTS ═══════════════
-function selRep(el,t){ S.rType=t; document.querySelectorAll('.ropt').forEach(o=>{o.style.borderColor='var(--border)';o.style.background='';}); el.style.borderColor='var(--teal)'; el.style.background='var(--teal-l)'; }
-function openReportModal(){ collectData(); S.rType='AM'; openOv('repOv'); document.getElementById('rep-prev').textContent='Select report type and click Preview...'; }
+let rType='AM';
+function selRep(el,t){rType=t;document.querySelectorAll('.ropt').forEach(o=>{o.style.borderColor='var(--border)';o.style.background='';});el.style.borderColor='var(--teal)';el.style.background='var(--teal-l)';}
+function openReportModal(){collectData();rType='AM';openOv('repOv');document.getElementById('rep-prev').textContent='Select report type and click Preview...';}
 
 async function getRepData(date,shift){
-  if(shift===S.shift&&date===S.date&&S.data) return S.data;
+  if(shift===S.shift&&date===S.date&&S.data)return S.data;
   const {data:row}=await SB.from('isr_shifts').select('data_json').eq('shift_key',`${date}_${shift}`).single();
-  if(!row) return null;
-  try{ return JSON.parse(row.data_json); }catch{ return null; }
+  if(!row)return null;try{return JSON.parse(row.data_json);}catch{return null;}
 }
 
 async function buildRepText(type){
@@ -1161,27 +1227,23 @@ ${'='.repeat(60)}
 
 `;
   async function sec(shift){
-    const d=await getRepData(S.date,shift);
-    if(!d) return `  [No data for ${shift} shift]
+    const d=await getRepData(S.date,shift);if(!d)return`  [No data for ${shift} shift]
 `;
     let s=`SHIFT: ${shift} | Officer: ${d.officer||'—'}
-`;
-    if(d.shiftOverview) s+=`Overview: ${d.shiftOverview}
-`;
-    s+='
+`;if(d.shiftOverview)s+=`Overview: ${d.shiftOverview}
+`;s+='
 ';
     const a=d.appointments||[];
-    if(a.length){ s+=`APPOINTMENTS (${a.length}):
+    if(a.length){s+=`APPOINTMENTS (${a.length}):
   ${'Type'.padEnd(16)} ${'Appt No.'.padEnd(10)} ${'Qty'.padEnd(6)} ${'Dept'.padEnd(6)} Merret App Putaway Verif
   ${'-'.repeat(65)}
-`; a.forEach(r=>s+=`  ${(r.isPriority?'★ ':''+(r.othersSpec||r.type)).padEnd(16)} ${r.apptNo.padEnd(10)} ${String(r.qty||'N/A').padEnd(6)} ${(r.dept||'—').padEnd(6)} ${r.merretUpdated.padEnd(7)} ${r.appUpdated.padEnd(4)} ${r.putawayComplete.padEnd(8)} ${r.putawayVerification}${r.isPriority?' [PRIORITY]':''}
-`); s+='
-'; }
-    const pri=d.priorityAppointments||[];
-    if(pri.length){ s+=`★ PRIORITY:
-`; pri.forEach(p=>s+=`  ★ ${p.apptNo} | Qty:${p.qty} | Brand:${p.brand||'—'}
-`); s+='
-'; }
+`;a.forEach(r=>s+=`  ${(r.isPriority?'★ ':''+(r.othersSpec||r.type)).padEnd(16)} ${r.apptNo.padEnd(10)} ${String(r.qty||'N/A').padEnd(6)} ${(r.dept||'—').padEnd(6)} ${r.merretUpdated.padEnd(7)} ${r.appUpdated.padEnd(4)} ${r.putawayComplete.padEnd(8)} ${r.putawayVerification}${r.isPriority?' [PRIORITY]':''}
+`);s+='
+';}
+    const pri=d.priorityAppointments||[];if(pri.length){s+=`★ PRIORITY:
+`;pri.forEach(p=>s+=`  ★ ${p.apptNo} | Qty:${p.qty} | Brand:${p.brand||'—'}
+`);s+='
+';}
     const fSt=d.fashionStaff||0,fH=fSt*7.5,fT=34*fH,fA=(a||[]).filter(x=>x.type==='Appointment No.').reduce((s,x)=>s+(+x.qty||0),0);
     s+=`FASHION KPI: Staff:${fSt} Hrs:${fH} Target:${fT} Actual:${fA} KPI:${fT>0?((fA/fT)*100).toFixed(1):0}%
 `;
@@ -1192,37 +1254,32 @@ ${'='.repeat(60)}
     s+=`PUTAWAY KPI: Staff:${pwSt} Hrs:${pwH} Target:${pwT} Actual:${pwA} KPI:${pwT>0?((pwA/pwT)*100).toFixed(1):0}%
 `;
     s+=`EMAIL: SOD:${d.sodInbox||0} EOD:${d.eodInbox||0}
-`;
-    if(d.issuesNotes) s+=`
+`;if(d.issuesNotes)s+=`
 ISSUES & NOTES:
 ${d.issuesNotes}
-`;
-    return s;
+`;return s;
   }
-  if(type==='FULL'){ t+=await sec('AM')+'
+  if(type==='FULL'){t+=await sec('AM')+'
 '+'-'.repeat(60)+'
 
-'+await sec('PM'); }
-  else { t+=await sec(type); }
+'+await sec('PM');}else{t+=await sec(type);}
   t+=`
 ${'='.repeat(60)}
 End of Report
-`;
-  return t;
+`;return t;
 }
 
-async function prevReport(){ showLoading('Building preview...'); const t=await buildRepText(S.rType); hideLoading(); document.getElementById('rep-prev').textContent=t; }
-async function printReport(){ showLoading('Preparing report...'); const t=await buildRepText(S.rType); const cfg=getCfg()||{}; hideLoading(); document.getElementById('pd').innerHTML=`<div class="pdh"><div class="pdt">${cfg.company||'Inbound Shift Report'}</div><div class="pdm"><span>${new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span><span>${S.rType==='FULL'?'Full Day':S.rType+' Shift'}</span><span>Officer: ${S.user.name}</span></div></div><pre style="font-size:10px;white-space:pre-wrap;font-family:monospace">${t}</pre><div class="pdf"><span>Generated: ${new Date().toLocaleString('en-GB')} by ${S.user.name}</span><span>Inbound Shift Report v2.0</span></div>`; window.print(); }
-async function emailReport(){ const to=document.getElementById('rep-email').value.trim(); const t=await buildRepText(S.rType); const cfg=getCfg()||{}; window.location.href=`mailto:${to}?subject=${encodeURIComponent(cfg.company+' — Shift Report '+S.date)}&body=${encodeURIComponent(t.slice(0,1800))}`; }
+async function prevReport(){showLoading('Building preview...');const t=await buildRepText(rType);hideLoading();document.getElementById('rep-prev').textContent=t;}
+async function printReport(){showLoading('Preparing...');const t=await buildRepText(rType);const cfg=getCfg()||{};hideLoading();document.getElementById('pd').innerHTML=`<div class="pdh"><div class="pdt">${cfg.company||'Inbound Shift Report'}</div><div class="pdm"><span>${new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span><span>${rType==='FULL'?'Full Day':rType+' Shift'}</span><span>Officer: ${S.user.name}</span></div></div><pre style="font-size:10px;white-space:pre-wrap;font-family:monospace">${t}</pre><div class="pdf"><span>Generated: ${new Date().toLocaleString('en-GB')} by ${S.user.name}</span><span>Inbound Shift Report v2.0</span></div>`;window.print();}
+async function emailReport(){const to=document.getElementById('rep-email').value.trim();const t=await buildRepText(rType);const cfg=getCfg()||{};window.location.href=`mailto:${to}?subject=${encodeURIComponent(cfg.company+' — Shift Report '+S.date)}&body=${encodeURIComponent(t.slice(0,1800))}`;}
 
-// ═══════════════ TOAST ═══════════════
 function toast(msg,type='info'){
-  const el=document.createElement('div'); el.className=`toast t${type.charAt(0)}`; el.innerHTML=`<span>${{success:'✓',error:'✕',info:'ℹ',warn:'⚠'}[type]||'ℹ'}</span><span>${msg}</span>`;
+  const el=document.createElement('div');el.className=`toast t${type.charAt(0)}`;el.innerHTML=`<span>${{success:'✓',error:'✕',info:'ℹ',warn:'⚠'}[type]||'ℹ'}</span><span>${msg}</span>`;
   document.getElementById('toasts').appendChild(el);
   setTimeout(()=>{el.style.animation='none';el.style.opacity='0';el.style.transform='translateX(20px)';setTimeout(()=>el.remove(),300);},3200);
 }
 
-document.addEventListener('input',e=>{ if(!S.data)return; if(e.target.id==='shiftOverview')S.data.shiftOverview=e.target.value; if(e.target.id==='issuesNotes')S.data.issuesNotes=e.target.value; });
+document.addEventListener('input',e=>{if(!S.data)return;if(e.target.id==='shiftOverview')S.data.shiftOverview=e.target.value;if(e.target.id==='issuesNotes')S.data.issuesNotes=e.target.value;});
 </script>
 </body>
 </html>
