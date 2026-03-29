@@ -1397,6 +1397,47 @@ function loadDash() {
     });
     document.getElementById('ap-ul').innerHTML = ulHtml || '<div style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">No users.</div>';
   });
+  // Load today shifts for dashboard
+  var todayKey1 = td + '_AM';
+  var todayKey2 = td + '_PM';
+  DB.from('isr_shifts').select('shift_key,shift,officer,saved_at,data_json').in('shift_key',[todayKey1,todayKey2]).then(function(sr) {
+    var rows = sr.data || [];
+    var shiftHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px">';
+    ['AM','PM'].forEach(function(sh) {
+      var r = rows.filter(function(x){return x.shift===sh;})[0];
+      var color = sh === 'AM' ? '#1e40af' : '#7c3aed';
+      var bg = sh === 'AM' ? '#dbeafe' : '#f3e8ff';
+      shiftHtml += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:13px">';
+      shiftHtml += '<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">';
+      shiftHtml += '<span style="background:' + bg + ';color:' + color + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px">' + sh + ' Shift</span>';
+      if (r) {
+        shiftHtml += '<span style="font-size:10px;color:#10b981;font-weight:600">Saved</span>';
+      } else {
+        shiftHtml += '<span style="font-size:10px;color:#94a3b8">No data yet</span>';
+      }
+      shiftHtml += '</div>';
+      if (r) {
+        var cnt = 0; try { cnt = JSON.parse(r.data_json).appointments.length; } catch(e){}
+        shiftHtml += '<div style="font-size:12px;font-weight:600;color:#0f172a">' + (r.officer||'--') + '</div>';
+        shiftHtml += '<div style="font-size:11px;color:#64748b;margin-top:2px">' + cnt + ' appointments &middot; Last saved: ' + fmtTs(r.saved_at) + '</div>';
+        shiftHtml += '<button class="btn btn-outline" style="margin-top:8px;font-size:11px;padding:4px 9px" onclick="jumpToShift('' + td + '','' + sh + '')">Open Shift</button>';
+      } else {
+        shiftHtml += '<div style="font-size:11px;color:#94a3b8;margin-top:4px">No shift data recorded today.</div>';
+        shiftHtml += '<button class="btn btn-save" style="margin-top:8px;font-size:11px;padding:4px 9px" onclick="jumpToShift('' + td + '','' + sh + '')">Start Shift</button>';
+      }
+      shiftHtml += '</div>';
+    });
+    shiftHtml += '</div>';
+    var dashEl = document.getElementById('ap-dash');
+    if (dashEl) {
+      var existing = dashEl.querySelector('.shift-day-overview');
+      if (existing) existing.remove();
+      var div = document.createElement('div');
+      div.className = 'shift-day-overview';
+      div.innerHTML = '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-top:14px;margin-bottom:6px">TODAY'S SHIFTS</div>' + shiftHtml;
+      dashEl.appendChild(div);
+    }
+  });
 }
 
 function loadUsers() {
@@ -1437,9 +1478,10 @@ function loadUsers() {
 function openAddUser() {
   S.editUserId = null;
   document.getElementById('au-title').textContent = 'Register User';
-  ['u-name','u-email','u-pwd','u-notes'].forEach(function(id){document.getElementById(id).value='';});
+  ['u-name','u-email','u-notes'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('u-role').value = 'user';
   document.getElementById('u-err').classList.remove('show');
+  genPwd(); // Auto-generate a password
   openOv('ov-add-user');
 }
 
@@ -1750,10 +1792,30 @@ function emailReport() {
   var to = document.getElementById('rep-email').value.trim();
   buildReport(rType).then(function(t) {
     var subj = 'GXO Logistics - Shift Report ' + S.date + ' ' + (rType === 'FULL' ? 'Full Day' : rType + ' Shift');
-    window.location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(t.slice(0,1800));
+    var elink = document.createElement('a');
+  elink.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(t.slice(0,1800));
+  elink.target = '_blank';
+  elink.style.display = 'none';
+  document.body.appendChild(elink);
+  elink.click();
+  setTimeout(function(){ document.body.removeChild(elink); }, 1000);
   });
 }
 
+
+
+function jumpToShift(date, shift) {
+  closeAdmin();
+  S.date = date;
+  S.shift = shift;
+  document.getElementById('hdr-date').value = date;
+  document.getElementById('p-am').classList.toggle('on', shift === 'AM');
+  document.getElementById('p-pm').classList.toggle('on', shift === 'PM');
+  updateTiles();
+  loadShift();
+  showPage('overview', document.querySelector('.nav.on') || document.querySelector('.nav'));
+  toast('Opened ' + shift + ' shift for ' + new Date(date + 'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}), 'i');
+}
 
 // ============================================================
 // PASSWORD GENERATION
@@ -1820,9 +1882,13 @@ function sendWelcomeEmail(name, email, pwd, role) {
     'GXO Logistics - Inbound Team'
   ].join('\n');
 
-  window.location.href = 'mailto:' + email
-    + '?subject=' + encodeURIComponent(subject)
-    + '&body=' + encodeURIComponent(body);
+  var link = document.createElement('a');
+  link.href = 'mailto:' + email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  link.target = '_blank';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(function(){ document.body.removeChild(link); }, 1000);
 }
 
 // ============================================================
@@ -1868,9 +1934,13 @@ function doResetPwd() {
       'Best regards,',
       'GXO Logistics - Inbound Team'
     ].join('\n');
-    window.location.href = 'mailto:' + resetUserEmail
-      + '?subject=' + encodeURIComponent(subject)
-      + '&body=' + encodeURIComponent(body);
+    var rlink = document.createElement('a');
+    rlink.href = 'mailto:' + resetUserEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    rlink.target = '_blank';
+    rlink.style.display = 'none';
+    document.body.appendChild(rlink);
+    rlink.click();
+    setTimeout(function(){ document.body.removeChild(rlink); }, 1000);
   });
 }
 
