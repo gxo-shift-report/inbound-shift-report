@@ -696,11 +696,9 @@ function saveCfg(c){ localStorage.setItem('isr_cfg', JSON.stringify(c)); }
 window.onload = async function(){
   document.getElementById('li-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('ll-url-display').textContent = window.location.href;
-  const cfg = getCfg();
-  if(!cfg || !cfg.url || !cfg.key){
-    document.getElementById('configScreen').classList.remove('hidden');
-    return;
-  }
+  // Credentials hardcoded -- no setup screen needed
+  const cfg = { url:'https://stkssrwuildvlthfunzt.supabase.co', key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0a3Nzcnd1aWxkdmx0aGZ1bnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MjM0NjAsImV4cCI6MjA5MDI5OTQ2MH0.7rUmcv-XPTEvJFy4YEdY92G2yT9gvPhr8DN21tJ1Ln4', company:'GXO Logistics' };
+  saveCfg(cfg);
   await initSupabase(cfg);
 };
 
@@ -820,8 +818,8 @@ async function setupUI(){
 
 function updateTiles(){
   document.getElementById('t-shift').textContent=S.shift;
-  document.getElementById('t-officer').textContent=S.user?.name||'—';
-  document.getElementById('t-date').textContent=S.date?new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):'—';
+  document.getElementById('t-officer').textContent=S.user?.name||'--';
+  document.getElementById('t-date').textContent=S.date?new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):'--';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -895,7 +893,7 @@ function renderAll(){
 function tbadge(t){const m={'Appointment No.':['bappt','Appt'],'Perf Appt No.':['bperf','Perf'],'Dublin':['bdub','Dublin'],'Birmingham':['bbirm','Birm']};const[c,l]=m[t]||['both',t.slice(0,5)];return`<span class="badge ${c}">${l}</span>`;}
 function ynb(v){return v==='Y'?'<span class="badge by">Y</span>':v==='N'?'<span class="badge bn">N</span>':'<span class="badge bna">N/A</span>';}
 function qtyd(q){return(!q||q==0)?'<span class="badge bna">N/A</span>':`<span class="tm">${q}</span>`;}
-function fmtTs(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
+function fmtTs(iso){if(!iso)return'--';const d=new Date(iso);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
 function inits(n){return(n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();}
 function kpiCol(p){return p>=100?'var(--green)':p>=75?'var(--teal)':p>=50?'var(--amber)':'var(--red)';}
 
@@ -906,10 +904,10 @@ function renderAppts(){
     const isP=r.isPriority,al=r.othersSpec?`${r.apptNo} <small style="color:var(--text2)">(${r.othersSpec})</small>`:r.apptNo;
     return`<tr class="${isP?'tpri':''}">
       <td>${tbadge(r.type)}</td><td class="tm">${al}${isP?' <span style="color:#ef4444;font-size:9px">★</span>':''}</td>
-      <td>${qtyd(r.qty)}</td><td class="tm">${r.dept||'—'}</td>
+      <td>${qtyd(r.qty)}</td><td class="tm">${r.dept||'--'}</td>
       <td>${ynb(r.merretUpdated)}</td><td>${ynb(r.appUpdated)}</td>
       <td>${ynb(r.putawayComplete)}</td><td>${ynb(r.putawayVerification)}</td>
-      <td style="font-size:10px;color:var(--text3)"><div>${r.enteredBy||'—'}</div><div>${r.enteredAt?new Date(r.enteredAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):''}</div>${r.modifiedBy?`<div class="mt">✏ ${r.modifiedBy}</div>`:''}</td>
+      <td style="font-size:10px;color:var(--text3)"><div>${r.enteredBy||'--'}</div><div>${r.enteredAt?new Date(r.enteredAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):''}</div>${r.modifiedBy?`<div class="mt">✏ ${r.modifiedBy}</div>`:''}</td>
       <td><div class="acts">
         <button class="act ae" onclick="startEdit('${r.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
         <button class="act ad" onclick="delAppt('${r.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
@@ -920,8 +918,8 @@ function renderAppts(){
 function renderWip(){
   const el=document.getElementById('wip-cards'),w=S.data.workInProgress||[];
   if(!w.length){el.innerHTML='<div class="se">No WIP entries.</div>';return;}
-  el.innerHTML=w.map(x=>`<div class="wc"><div class="wh"><div class="wa">${x.apptNo||'—'}</div><span class="badge bam">WIP</span></div>
-    <div class="wf2"><div><div class="wfl">Qty</div><div class="wfv">${x.qty||'—'}</div></div><div><div class="wfl">Brand</div><div class="wfv">${x.brand||'—'}</div></div><div><div class="wfl">Bench</div><div class="wfv">${x.bench||'—'}</div></div></div>
+  el.innerHTML=w.map(x=>`<div class="wc"><div class="wh"><div class="wa">${x.apptNo||'--'}</div><span class="badge bam">WIP</span></div>
+    <div class="wf2"><div><div class="wfl">Qty</div><div class="wfv">${x.qty||'--'}</div></div><div><div class="wfl">Brand</div><div class="wfv">${x.brand||'--'}</div></div><div><div class="wfl">Bench</div><div class="wfv">${x.bench||'--'}</div></div></div>
     <div class="wft"><span class="wm">${x.enteredBy||''}</span><button class="act ad" onclick="delWip('${x.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
   </div>`).join('');
 }
@@ -929,8 +927,8 @@ function renderWip(){
 function renderPri(){
   const el=document.getElementById('pri-cards'),p=S.data.priorityAppointments||[];
   if(!p.length){el.innerHTML='<div class="se">No priority appointments.</div>';return;}
-  el.innerHTML=p.map(x=>`<div class="wc pc"><div class="wh"><div class="wa">${x.apptNo||'—'}</div><span class="badge bn">★ PRIORITY</span></div>
-    <div class="wf2"><div><div class="wfl">Qty</div><div class="wfv">${x.qty||'—'}</div></div><div><div class="wfl">Brand</div><div class="wfv">${x.brand||'—'}</div></div></div>
+  el.innerHTML=p.map(x=>`<div class="wc pc"><div class="wh"><div class="wa">${x.apptNo||'--'}</div><span class="badge bn">★ PRIORITY</span></div>
+    <div class="wf2"><div><div class="wfl">Qty</div><div class="wfv">${x.qty||'--'}</div></div><div><div class="wfl">Brand</div><div class="wfv">${x.brand||'--'}</div></div></div>
     <div class="wft"><span class="wm">${x.enteredBy||''}</span><button class="act ad" onclick="delPri('${x.id}')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>
   </div>`).join('');
 }
@@ -1149,11 +1147,11 @@ async function loadLog(){
   if(!(log||[]).length){tb.innerHTML='<tr><td colspan="7" class="se">No log entries.</td></tr>';return;}
   tb.innerHTML=(log||[]).map((l,i)=>`<tr>
     <td class="tm" style="color:var(--text3)">${(log||[]).length-i}</td>
-    <td><div style="font-weight:600">${l.name||'—'}</div></td>
-    <td class="tm" style="font-size:11px">${l.email||'—'}</td>
+    <td><div style="font-weight:600">${l.name||'--'}</div></td>
+    <td class="tm" style="font-size:11px">${l.email||'--'}</td>
     <td><span class="badge ${l.role==='superadmin'?'bsuper':l.role==='admin'?'badm':'busr'}">${l.role==='superadmin'?'Super Admin':l.role==='admin'?'Admin':'User'}</span></td>
-    <td><span class="badge ${l.shift==='AM'?'bam':'bpm'}">${l.shift||'—'}</span></td>
-    <td class="tm">${l.date?new Date(l.date+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—'}</td>
+    <td><span class="badge ${l.shift==='AM'?'bam':'bpm'}">${l.shift||'--'}</span></td>
+    <td class="tm">${l.date?new Date(l.date+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'--'}</td>
     <td class="tm">${l.login_at?new Date(l.login_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):''}</td>
   </tr>`).join('');
 }
@@ -1168,7 +1166,7 @@ async function searchRec(mode){
     return`<div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px">
       <div><span style="font-weight:700;color:var(--navy)">${new Date(r.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}</span>
       <span class="badge ${r.shift==='AM'?'bam':'bpm'}" style="margin-left:8px">${r.shift}</span>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">Officer: <strong>${r.officer||'—'}</strong> · ${c} appts · Saved: ${fmtTs(r.saved_at)}</div></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Officer: <strong>${r.officer||'--'}</strong> · ${c} appts · Saved: ${fmtTs(r.saved_at)}</div></div>
       <button class="btn bt bs" onclick="viewRec('${r.date}','${r.shift}')">View</button>
     </div>`;}).join('');
 }
@@ -1177,12 +1175,12 @@ async function viewRec(date,shift){
   const {data:row}=await SB.from('isr_shifts').select('*').eq('shift_key',`${date}_${shift}`).single();
   if(!row){toast('Record not found.','error');return;}
   let d;try{d=JSON.parse(row.data_json);}catch{toast('Could not parse record.','error');return;}
-  document.getElementById('hv-title').textContent=`${new Date(date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} — ${shift} Shift`;
-  let h=`<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px"><strong>Officer:</strong> ${d.officer||'—'} · <strong>Saved:</strong> ${fmtTs(d.savedAt)} by ${d.savedBy||'—'}</div>`;
+  document.getElementById('hv-title').textContent=`${new Date(date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} -- ${shift} Shift`;
+  let h=`<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px"><strong>Officer:</strong> ${d.officer||'--'} · <strong>Saved:</strong> ${fmtTs(d.savedAt)} by ${d.savedBy||'--'}</div>`;
   if(d.shiftOverview)h+=`<strong>Overview:</strong><div style="background:#f8f8f8;border-radius:6px;padding:8px;margin:4px 0 12px;font-size:11px">${d.shiftOverview}</div>`;
   const a=d.appointments||[];
   if(a.length){h+=`<strong>Appointments (${a.length}):</strong><table style="width:100%;border-collapse:collapse;font-size:11px;margin:6px 0 12px"><thead><tr style="background:var(--navy)">${['Type','Appt No.','Qty','Dept','Merret','App','Putaway','Verif.','By'].map(c=>`<th style="padding:4px 8px;text-align:left;color:#8da8c0;font-size:9px">${c}</th>`).join('')}</tr></thead><tbody>`;
-  a.forEach((r,i)=>{h+=`<tr style="${i%2?'background:#f9f9f9':''}${r.isPriority?';color:#dc2626;font-weight:700':''}"><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.type}</td><td style="padding:4px 8px;font-family:monospace">${r.apptNo}${r.isPriority?' ★':''}</td><td style="padding:4px 8px">${r.qty||'N/A'}</td><td style="padding:4px 8px">${r.dept||'—'}</td><td style="padding:4px 8px">${r.merretUpdated}</td><td style="padding:4px 8px">${r.appUpdated}</td><td style="padding:4px 8px">${r.putawayComplete}</td><td style="padding:4px 8px">${r.putawayVerification}</td><td style="padding:4px 8px;font-size:10px">${r.enteredBy||'—'}</td></tr>`;});
+  a.forEach((r,i)=>{h+=`<tr style="${i%2?'background:#f9f9f9':''}${r.isPriority?';color:#dc2626;font-weight:700':''}"><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.type}</td><td style="padding:4px 8px;font-family:monospace">${r.apptNo}${r.isPriority?' ★':''}</td><td style="padding:4px 8px">${r.qty||'N/A'}</td><td style="padding:4px 8px">${r.dept||'--'}</td><td style="padding:4px 8px">${r.merretUpdated}</td><td style="padding:4px 8px">${r.appUpdated}</td><td style="padding:4px 8px">${r.putawayComplete}</td><td style="padding:4px 8px">${r.putawayVerification}</td><td style="padding:4px 8px;font-size:10px">${r.enteredBy||'--'}</td></tr>`;});
   h+='</tbody></table>';}
   const pri=d.priorityAppointments||[];
   if(pri.length)h+=`<strong style="color:#dc2626">★ Priority:</strong><div style="margin:4px 0 12px">${pri.map(p=>`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:6px;margin-right:5px;font-weight:700;font-size:11px">${p.apptNo} Qty:${p.qty} ${p.brand||''}</span>`).join('')}</div>`;
@@ -1200,7 +1198,7 @@ async function loadHist(mode){
   el.innerHTML=(rows||[]).map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:7px;cursor:pointer;transition:.15s" onmouseenter="this.style.borderColor='var(--teal)'" onmouseleave="this.style.borderColor='var(--border)'" onclick="viewRec('${r.date}','${r.shift}');closeOv('histOv')">
     <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:13px;color:var(--navy)">${new Date(r.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}</span>
     <span class="badge ${r.shift==='AM'?'bam':'bpm'}">${r.shift}</span>
-    <span style="font-size:11px;color:var(--text2);margin-left:auto">Officer: ${r.officer||'—'}</span>
+    <span style="font-size:11px;color:var(--text2);margin-left:auto">Officer: ${r.officer||'--'}</span>
   </div>`).join('');
 }
 
@@ -1216,62 +1214,64 @@ async function getRepData(date,shift){
 
 async function buildRepText(type){
   const cfg=getCfg()||{};
-  const fmtDate=d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  let t=`${cfg.company||'Inbound Shift Report'}
-INBOUND SHIFT REPORT
-${'='.repeat(60)}
-Date: ${fmtDate(S.date)}
-Report: ${type==='FULL'?'Full Day (AM+PM)':type+' Shift'}
-Generated: ${new Date().toLocaleString('en-GB')} by ${S.user.name}
-${'='.repeat(60)}
-
-`;
+  const N='\n';
+  const SEP='='.repeat(60);
+  const fmtD=d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  let t=(cfg.company||'Inbound Shift Report')+N+'INBOUND SHIFT REPORT'+N+SEP+N;
+  t+='Date: '+fmtD(S.date)+N;
+  t+='Report: '+(type==='FULL'?'Full Day (AM+PM)':type+' Shift')+N;
+  t+='Generated: '+new Date().toLocaleString('en-GB')+' by '+S.user.name+N+SEP+N+N;
   async function sec(shift){
-    const d=await getRepData(S.date,shift);if(!d)return`  [No data for ${shift} shift]
-`;
-    let s=`SHIFT: ${shift} | Officer: ${d.officer||'—'}
-`;if(d.shiftOverview)s+=`Overview: ${d.shiftOverview}
-`;s+='
-';
+    const d=await getRepData(S.date,shift);
+    if(!d) return '  [No data for '+shift+' shift]'+N;
+    let s='SHIFT: '+shift+' | Officer: '+(d.officer||'-')+N;
+    if(d.shiftOverview) s+='Overview: '+d.shiftOverview+N;
+    s+=N;
     const a=d.appointments||[];
-    if(a.length){s+=`APPOINTMENTS (${a.length}):
-  ${'Type'.padEnd(16)} ${'Appt No.'.padEnd(10)} ${'Qty'.padEnd(6)} ${'Dept'.padEnd(6)} Merret App Putaway Verif
-  ${'-'.repeat(65)}
-`;a.forEach(r=>s+=`  ${(r.isPriority?'★ ':''+(r.othersSpec||r.type)).padEnd(16)} ${r.apptNo.padEnd(10)} ${String(r.qty||'N/A').padEnd(6)} ${(r.dept||'—').padEnd(6)} ${r.merretUpdated.padEnd(7)} ${r.appUpdated.padEnd(4)} ${r.putawayComplete.padEnd(8)} ${r.putawayVerification}${r.isPriority?' [PRIORITY]':''}
-`);s+='
-';}
-    const pri=d.priorityAppointments||[];if(pri.length){s+=`★ PRIORITY:
-`;pri.forEach(p=>s+=`  ★ ${p.apptNo} | Qty:${p.qty} | Brand:${p.brand||'—'}
-`);s+='
-';}
+    if(a.length){
+      s+='APPOINTMENTS ('+a.length+'):'+N;
+      s+='  '+('Type').padEnd(16)+' '+('Appt No.').padEnd(10)+' '+('Qty').padEnd(6)+' '+('Dept').padEnd(6)+' Merret App Putaway Verif'+N;
+      s+='  '+'-'.repeat(65)+N;
+      a.forEach(r=>{
+        const lbl=(r.isPriority?'* ':''+(r.othersSpec||r.type)).padEnd(16);
+        s+='  '+lbl+' '+r.apptNo.padEnd(10)+' '+String(r.qty||'N/A').padEnd(6)+' '+(r.dept||'-').padEnd(6)+' '+r.merretUpdated.padEnd(7)+' '+r.appUpdated.padEnd(4)+' '+r.putawayComplete.padEnd(8)+' '+r.putawayVerification+(r.isPriority?' [PRIORITY]':'')+N;
+      });
+      s+=N;
+    }
+    const pri=d.priorityAppointments||[];
+    if(pri.length){ s+='PRIORITY APPOINTMENTS:'+N; pri.forEach(p=>{ s+='  * '+p.apptNo+' | Qty:'+p.qty+' | Brand:'+(p.brand||'-')+N; }); s+=N; }
+    const wip=d.workInProgress||[];
+    if(wip.length){ s+='WORK IN PROGRESS:'+N; wip.forEach(w=>{ s+='  '+w.apptNo+' | Qty:'+w.qty+' | Brand:'+(w.brand||'-')+' | Bench:'+(w.bench||'-')+N; }); s+=N; }
     const fSt=d.fashionStaff||0,fH=fSt*7.5,fT=34*fH,fA=(a||[]).filter(x=>x.type==='Appointment No.').reduce((s,x)=>s+(+x.qty||0),0);
-    s+=`FASHION KPI: Staff:${fSt} Hrs:${fH} Target:${fT} Actual:${fA} KPI:${fT>0?((fA/fT)*100).toFixed(1):0}%
-`;
+    s+='FASHION KPI: Staff:'+fSt+' Hrs:'+fH+' Target:'+fT+' Actual:'+fA+' KPI:'+(fT>0?((fA/fT)*100).toFixed(1):0)+'%'+N;
     const pSt=d.perfStaff||0,pH=pSt*7.5,pT=321*pH,pA=(a||[]).filter(x=>x.type==='Perf Appt No.').reduce((s,x)=>s+(+x.qty||0),0);
-    s+=`PERFUMERY KPI: Staff:${pSt} Hrs:${pH} Target:${pT} Actual:${pA} KPI:${pT>0?((pA/pT)*100).toFixed(1):0}%
-`;
+    s+='PERFUMERY KPI: Staff:'+pSt+' Hrs:'+pH+' Target:'+pT+' Actual:'+pA+' KPI:'+(pT>0?((pA/pT)*100).toFixed(1):0)+'%'+N;
     const pwSt=d.putawayStaff||0,pwH=pwSt*7.5,pwT=Math.round((1000/7.5)*pwH),pwA=d.putawayActual||0;
-    s+=`PUTAWAY KPI: Staff:${pwSt} Hrs:${pwH} Target:${pwT} Actual:${pwA} KPI:${pwT>0?((pwA/pwT)*100).toFixed(1):0}%
-`;
-    s+=`EMAIL: SOD:${d.sodInbox||0} EOD:${d.eodInbox||0}
-`;if(d.issuesNotes)s+=`
-ISSUES & NOTES:
-${d.issuesNotes}
-`;return s;
+    s+='PUTAWAY KPI: Staff:'+pwSt+' Hrs:'+pwH+' Target:'+pwT+' Actual:'+pwA+' KPI:'+(pwT>0?((pwA/pwT)*100).toFixed(1):0)+'%'+N;
+    s+='EMAIL: SOD:'+(d.sodInbox||0)+' EOD:'+(d.eodInbox||0)+N;
+    if(d.issuesNotes) s+=N+'ISSUES & NOTES:'+N+d.issuesNotes+N;
+    return s;
   }
-  if(type==='FULL'){t+=await sec('AM')+'
-'+'-'.repeat(60)+'
-
-'+await sec('PM');}else{t+=await sec(type);}
-  t+=`
-${'='.repeat(60)}
-End of Report
-`;return t;
+  if(type==='FULL'){ t+=await sec('AM'); t+=N+'-'.repeat(60)+N+N; t+=await sec('PM'); }
+  else { t+=await sec(type); }
+  t+=N+SEP+N+'End of Report'+N;
+  return t;
 }
 
 async function prevReport(){showLoading('Building preview...');const t=await buildRepText(rType);hideLoading();document.getElementById('rep-prev').textContent=t;}
-async function printReport(){showLoading('Preparing...');const t=await buildRepText(rType);const cfg=getCfg()||{};hideLoading();document.getElementById('pd').innerHTML=`<div class="pdh"><div class="pdt">${cfg.company||'Inbound Shift Report'}</div><div class="pdm"><span>${new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span><span>${rType==='FULL'?'Full Day':rType+' Shift'}</span><span>Officer: ${S.user.name}</span></div></div><pre style="font-size:10px;white-space:pre-wrap;font-family:monospace">${t}</pre><div class="pdf"><span>Generated: ${new Date().toLocaleString('en-GB')} by ${S.user.name}</span><span>Inbound Shift Report v2.0</span></div>`;window.print();}
-async function emailReport(){const to=document.getElementById('rep-email').value.trim();const t=await buildRepText(rType);const cfg=getCfg()||{};window.location.href=`mailto:${to}?subject=${encodeURIComponent(cfg.company+' — Shift Report '+S.date)}&body=${encodeURIComponent(t.slice(0,1800))}`;}
+async function printReport(){
+  showLoading('Preparing...');
+  const t=await buildRepText(rType);
+  const cfg=getCfg()||{};
+  hideLoading();
+  const company=cfg.company||'Inbound Shift Report';
+  const dateStr=new Date(S.date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const shiftStr=rType==='FULL'?'Full Day':rType+' Shift';
+  const genStr='Generated: '+new Date().toLocaleString('en-GB')+' by '+S.user.name;
+  document.getElementById('pd').innerHTML='<div class="pdh"><div class="pdt">'+company+'</div><div class="pdm"><span>'+dateStr+'</span><span>'+shiftStr+'</span><span>Officer: '+S.user.name+'</span></div></div><pre style="font-size:10px;white-space:pre-wrap;font-family:monospace">'+t+'</pre><div class="pdf"><span>'+genStr+'</span><span>Inbound Shift Report v2.0</span></div>';
+  window.print();
+}
+async function emailReport(){const to=document.getElementById('rep-email').value.trim();const t=await buildRepText(rType);const cfg=getCfg()||{};window.location.href=`mailto:${to}?subject=${encodeURIComponent(cfg.company+' -- Shift Report '+S.date)}&body=${encodeURIComponent(t.slice(0,1800))}`;}
 
 function toast(msg,type='info'){
   const el=document.createElement('div');el.className=`toast t${type.charAt(0)}`;el.innerHTML=`<span>${{success:'✓',error:'✕',info:'ℹ',warn:'⚠'}[type]||'ℹ'}</span><span>${msg}</span>`;
