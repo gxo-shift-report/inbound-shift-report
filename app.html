@@ -588,7 +588,7 @@ table td{padding:8px 10px;vertical-align:middle}
       </div>
       <!-- USERS -->
       <div id="ap-users" class="ap-sec">
-        <div class="ph"><div><h2>User Registry</h2><div class="sub">Any email format accepted</div></div>
+        <div class="ph"><div><h2>Users</h2></div>
           <div class="ph-actions"><button class="btn btn-report" onclick="openAddUser()"><svg viewBox="0 0 24 24"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>Register User</button></div>
         </div>
         <div class="tw"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr></thead><tbody id="users-tb"></tbody></table></div>
@@ -648,11 +648,19 @@ table td{padding:8px 10px;vertical-align:middle}
       </div>
       <div class="fr fr2">
         <div class="ff"><label>Role</label><select id="u-role"><option value="user">User (Staff)</option><option value="admin">Admin (Manager)</option></select></div>
-        <div class="ff"><label>Password <span class="req">*</span></label><input type="text" id="u-pwd" placeholder="Set their password" style="font-family:'JetBrains Mono',monospace"></div>
+        <div class="ff"><label>Temporary Password <span class="req">*</span></label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="u-pwd" placeholder="Auto-generated or type one" style="font-family:'JetBrains Mono',monospace;flex:1">
+            <button type="button" class="btn btn-outline" style="flex-shrink:0;padding:7px 10px;font-size:11px" onclick="genPwd()">Generate</button>
+          </div>
+        </div>
       </div>
-      <div class="fr"><div class="ff"><label>Notes / Position</label><input type="text" id="u-notes" placeholder="e.g. AM Supervisor"></div></div>
+      <div class="fr"><div class="ff"><label>Notes / Position</label><input type="text" id="u-notes" placeholder="e.g. AM Supervisor, Inbound Clerk"></div></div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 13px;margin-top:4px;font-size:11px;color:#166534">
+        <strong>&#9993; Welcome email</strong> will open automatically after registration so you can send login details to the new user.
+      </div>
     </div>
-    <div class="mfoot"><button class="btn btn-outline" onclick="closeOv('ov-add-user')">Cancel</button><button class="btn btn-report" onclick="saveUser()">Register</button></div>
+    <div class="mfoot"><button class="btn btn-outline" onclick="closeOv('ov-add-user')">Cancel</button><button class="btn btn-report" onclick="saveUser()">Register &amp; Send Welcome Email</button></div>
   </div>
 </div>
 
@@ -704,6 +712,25 @@ table td{padding:8px 10px;vertical-align:middle}
   </div>
 </div>
 
+
+<div class="overlay" id="ov-reset-pwd">
+  <div class="modal modal-sm"><div class="mhead"><h3>Reset Password</h3><button class="mclose" onclick="closeOv('ov-reset-pwd')">x</button></div>
+    <div class="mbody">
+      <div style="background:#fffbeb;border:1px solid #fde047;border-radius:8px;padding:10px 13px;margin-bottom:12px;font-size:11px;color:#854d0e">
+        A new temporary password will be generated. The user must change it after logging in.
+      </div>
+      <div id="reset-user-name" style="font-weight:700;font-size:14px;color:#0f172a;margin-bottom:10px"></div>
+      <div class="ff"><label>New Temporary Password</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="reset-pwd" style="font-family:'JetBrains Mono',monospace;flex:1;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;outline:none">
+          <button type="button" class="btn btn-outline" style="flex-shrink:0;padding:7px 10px;font-size:11px" onclick="genResetPwd()">Generate</button>
+        </div>
+      </div>
+      <div class="err" id="reset-err" style="margin-top:6px"></div>
+    </div>
+    <div class="mfoot"><button class="btn btn-outline" onclick="closeOv('ov-reset-pwd')">Cancel</button><button class="btn btn-save" onclick="doResetPwd()">Reset &amp; Send Email</button></div>
+  </div>
+</div>
 <div class="toasts" id="toasts"></div>
 <div id="print-doc"></div>
 
@@ -1395,7 +1422,8 @@ function loadUsers() {
       html += '<td><div class="acts">';
       if (u.role !== 'superadmin') {
         html += '<button class="act act-e" onclick="editUser(\'' + u.id + '\')" title="Edit"><svg viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>';
-        html += '<button class="act act-t" onclick="togUser(\'' + u.id + '\',' + (!u.active) + ')" title="Toggle"><svg viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></button>';
+        html += '<button class="act" style="background:#f0fdf4;color:#16a34a;border:none" onclick="openResetPwd(\'' + u.id + '\',\'' + u.name + '\',\'' + u.email + '\')" title="Reset Password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg></button>';
+        html += '<button class="act act-t" onclick="togUser(\'' + u.id + '\',' + (!u.active) + ')" title="Toggle Active"><svg viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></button>';
         html += '<button class="act act-d" onclick="delUser(\'' + u.id + '\',\'' + u.name + '\')" title="Delete"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>';
       } else {
         html += '<span style="font-size:10px;color:#94a3b8">Protected</span>';
@@ -1723,6 +1751,126 @@ function emailReport() {
   buildReport(rType).then(function(t) {
     var subj = 'GXO Logistics - Shift Report ' + S.date + ' ' + (rType === 'FULL' ? 'Full Day' : rType + ' Shift');
     window.location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(t.slice(0,1800));
+  });
+}
+
+
+// ============================================================
+// PASSWORD GENERATION
+// ============================================================
+function genPwd() {
+  var chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
+  var pwd = '';
+  for (var i = 0; i < 10; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+  document.getElementById('u-pwd').value = pwd;
+}
+
+function genResetPwd() {
+  var chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
+  var pwd = '';
+  for (var i = 0; i < 10; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+  document.getElementById('reset-pwd').value = pwd;
+}
+
+// ============================================================
+// WELCOME EMAIL
+// ============================================================
+function sendWelcomeEmail(name, email, pwd, role) {
+  var appUrl = 'https://gxo-shift-report.github.io/inbound-shift-report/app.html';
+  var roleLabel = role === 'admin' ? 'Admin (Manager)' : 'Staff User';
+  var subject = 'Welcome to GXO Inbound Shift Report System';
+  var body = [
+    'Dear ' + name + ',',
+    '',
+    'You have been registered on the GXO Inbound Shift Report System.',
+    '',
+    'YOUR LOGIN DETAILS',
+    '==================',
+    'Website:  ' + appUrl,
+    'Email:    ' + email,
+    'Password: ' + pwd,
+    'Role:     ' + roleLabel,
+    '',
+    'HOW TO ACCESS',
+    '=============',
+    '1. Open the link above in Chrome, Edge, Firefox or Safari',
+    '2. Enter your email and password',
+    '3. Select your shift (AM or PM) and todays date',
+    '4. Click Sign In',
+    '',
+    'WHAT YOU CAN DO',
+    '===============',
+    '- Log appointments processed during your shift',
+    '- Record Work In Progress (WIP) items',
+    '- Flag priority appointments',
+    '- Track Fashion, Perfumery and Putaway KPIs',
+    '- Add issues and handover notes for the next shift',
+    '- View shift history and generate reports',
+    '',
+    'IMPORTANT',
+    '=========',
+    '- Please keep your password safe and do not share it',
+    '- You can change your password by contacting your admin',
+    '- Save the website link as a bookmark on your device',
+    '- The system works on phones, tablets and computers',
+    '',
+    'If you have any issues logging in please contact your manager.',
+    '',
+    'Best regards,',
+    'GXO Logistics - Inbound Team'
+  ].join('\n');
+
+  window.location.href = 'mailto:' + email
+    + '?subject=' + encodeURIComponent(subject)
+    + '&body=' + encodeURIComponent(body);
+}
+
+// ============================================================
+// RESET PASSWORD
+// ============================================================
+var resetUserId = null;
+var resetUserEmail = null;
+
+function openResetPwd(id, name, email) {
+  resetUserId = id;
+  resetUserEmail = email;
+  document.getElementById('reset-user-name').textContent = name + ' (' + email + ')';
+  document.getElementById('reset-pwd').value = '';
+  document.getElementById('reset-err').classList.remove('show');
+  genResetPwd();
+  openOv('ov-reset-pwd');
+}
+
+function doResetPwd() {
+  var pwd = document.getElementById('reset-pwd').value.trim();
+  if (!pwd) { showErr('reset-err', 'Please enter or generate a password.'); return; }
+  showLoad('Resetting password...');
+  DB.from('isr_users').update({ pwd: pwd }).eq('id', resetUserId).then(function(res) {
+    hideLoad();
+    if (res.error) { showErr('reset-err', res.error.message); return; }
+    closeOv('ov-reset-pwd');
+    toast('Password reset! Opening email...', 's');
+    // Send reset email
+    var subject = 'GXO Shift Report - Your Password Has Been Reset';
+    var appUrl = 'https://gxo-shift-report.github.io/inbound-shift-report/app.html';
+    var body = [
+      'Your password for the GXO Inbound Shift Report has been reset.',
+      '',
+      'YOUR NEW LOGIN DETAILS',
+      '======================',
+      'Website:      ' + appUrl,
+      'Email:        ' + resetUserEmail,
+      'New Password: ' + pwd,
+      '',
+      'Please log in and keep this password safe.',
+      'Contact your manager if you have any issues.',
+      '',
+      'Best regards,',
+      'GXO Logistics - Inbound Team'
+    ].join('\n');
+    window.location.href = 'mailto:' + resetUserEmail
+      + '?subject=' + encodeURIComponent(subject)
+      + '&body=' + encodeURIComponent(body);
   });
 }
 
